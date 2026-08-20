@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminConsole from './AdminConsole'
+import AuthPage from './AuthPage'
+import { canAccessPath, resolveHome } from './auth'
 
 const Icon = ({ name, size = 18, stroke = 1.8 }) => {
   const paths = {
@@ -39,26 +41,56 @@ const conversationsSeed = [
 
 const quickReplies = ['您好，我来帮您查询一下，请稍候。', '感谢您的耐心等待，问题已经记录。', '请问您方便提供一下订单号吗？']
 
-function WorkbenchRoute() {
+const SESSION_KEY = 'ai-customer-service-session'
+
+function readSession() {
+  try {
+    return JSON.parse(window.sessionStorage.getItem(SESSION_KEY))
+  } catch {
+    return null
+  }
+}
+
+function ProtectedRoute({ session, children }) {
+  const location = useLocation()
+  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!canAccessPath(session.role, location.pathname)) return <Navigate to={resolveHome(session.role)} replace />
+  return children
+}
+
+function WorkbenchRoute({ session, onLogout }) {
   const params = useParams()
   const navigate = useNavigate()
-  return <Workbench routeId={params.conversationId} navigate={navigate} />
+  return <Workbench routeId={params.conversationId} navigate={navigate} session={session} onLogout={onLogout} />
 }
 
 function App() {
+  const [session, setSession] = useState(readSession)
+  const authenticate = (nextSession) => {
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
+    setSession(nextSession)
+  }
+  const logout = () => {
+    window.sessionStorage.removeItem(SESSION_KEY)
+    setSession(null)
+  }
+
   return <Routes>
-    <Route path="/" element={<Navigate to="/workbench" replace />} />
-    <Route path="/workbench" element={<WorkbenchRoute />} />
-    <Route path="/workbench/:conversationId" element={<WorkbenchRoute />} />
-    <Route path="/platform" element={<Navigate to="/platform/overview" replace />} />
-    <Route path="/platform/:module" element={<AdminConsole mode="platform" />} />
-    <Route path="/organization" element={<Navigate to="/organization/overview" replace />} />
-    <Route path="/organization/:module" element={<AdminConsole mode="organization" />} />
-    <Route path="*" element={<Navigate to="/workbench" replace />} />
+    <Route path="/" element={<Navigate to={session ? resolveHome(session.role) : '/login'} replace />} />
+    <Route path="/login" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="login" onAuthenticated={authenticate} />} />
+    <Route path="/register" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="register" onAuthenticated={authenticate} />} />
+    <Route path="/forgot-password" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="recovery" onAuthenticated={authenticate} />} />
+    <Route path="/workbench" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
+    <Route path="/workbench/:conversationId" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
+    <Route path="/platform" element={<ProtectedRoute session={session}><Navigate to="/platform/overview" replace /></ProtectedRoute>} />
+    <Route path="/platform/:module" element={<ProtectedRoute session={session}><AdminConsole mode="platform" session={session} onLogout={logout} /></ProtectedRoute>} />
+    <Route path="/organization" element={<ProtectedRoute session={session}><Navigate to="/organization/overview" replace /></ProtectedRoute>} />
+    <Route path="/organization/:module" element={<ProtectedRoute session={session}><AdminConsole mode="organization" session={session} onLogout={logout} /></ProtectedRoute>} />
+    <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }
 
-function Workbench({ routeId, navigate }) {
+function Workbench({ routeId, navigate, session, onLogout }) {
   const [conversations, setConversations] = useState(conversationsSeed)
   const [selectedId, setSelectedId] = useState(routeId || conversationsSeed[0].id)
   const [query, setQuery] = useState('')
@@ -141,8 +173,9 @@ function Workbench({ routeId, navigate }) {
         <div className="topbar-actions">
           <div className="online-state"><span className="online-dot" />在线接待 <Icon name="down" size={13} /></div>
           <button className="icon-button" aria-label="查看通知"><Icon name="bell" /></button>
-          <div className="agent-avatar">李</div>
-          <div className="agent-meta"><strong>李楠</strong><span>客服专员</span></div>
+          <div className="agent-avatar">{session.name.slice(0, 1)}</div>
+          <div className="agent-meta"><strong>{session.name}</strong><span>{session.title}</span></div>
+          <button className="logout-button" onClick={onLogout}>退出</button>
         </div>
       </header>
 
