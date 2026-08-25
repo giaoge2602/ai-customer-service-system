@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 智能客服系统 V1 数据底座版 · 原型设计总览</title>
+<style>
+  :root{
+    --bg:#f7f8fb; --card:#fff; --line:#e5e7eb; --text:#0f172a; --muted:#64748b;
+    --primary:#2563eb; --primary-soft:#eff6ff; --accent:#7c3aed; --success:#16a34a;
+    --warn:#d97706; --danger:#dc2626; --info:#0891b2;
+    --tag-bg:#eef2ff; --tag-fg:#4338ca;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); line-height:1.7; font-size:14px}
+  .layout{display:grid; grid-template-columns:280px 1fr; min-height:100vh}
+  nav{position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto; background:#0f172a; color:#e2e8f0; padding:28px 20px; border-right:1px solid #1e293b}
+  .nav-title{font-size:12px; color:#94a3b8; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px}
+  .nav-h1{font-size:16px; font-weight:600; color:#f8fafc; margin:0 0 28px 0; line-height:1.4}
+  .nav-h1 small{display:block; font-size:11px; color:#60a5fa; font-weight:400; margin-top:4px}
+  .nav-group{margin-bottom:18px}
+  .nav-group-title{font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:.8px; text-transform:uppercase; margin-bottom:8px; padding:0 8px}
+  .nav-group a{display:flex; align-items:center; gap:8px; padding:7px 8px; color:#cbd5e1; text-decoration:none; font-size:13px; border-radius:6px; margin-bottom:2px; transition:all .15s}
+  .nav-group a:hover{background:#1e293b; color:#fff}
+  .nav-group a .ico{width:18px; text-align:center; font-size:12px; color:#94a3b8}
+  .nav-group a:hover .ico{color:#60a5fa}
+  .nav-group .sub{padding-left:26px; font-size:12px; color:#94a3b8}
+  .nav-group .sub:hover{color:#e2e8f0}
+  main{padding:40px 56px 80px; max-width:1280px; margin:0 auto; width:100%}
+  h1.hero{font-size:34px; margin:0 0 8px 0; font-weight:700; letter-spacing:-.5px}
+  .hero-sub{color:var(--muted); margin:0 0 6px 0; font-size:14px}
+  .badge-row{display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 36px 0}
+  .badge{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:500; background:var(--tag-bg); color:var(--tag-fg)}
+  .badge.green{background:#dcfce7; color:#15803d}
+  .badge.amber{background:#fef3c7; color:#b45309}
+  .badge.blue{background:#dbeafe; color:#1d4ed8}
+  .badge.rose{background:#ffe4e6; color:#be123c}
+  h2{font-size:24px; font-weight:700; margin:64px 0 20px 0; padding-bottom:10px; border-bottom:2px solid var(--line); scroll-margin-top:24px}
+  h2 .num{display:inline-block; width:36px; height:36px; line-height:36px; text-align:center; background:var(--primary); color:#fff; border-radius:8px; margin-right:12px; font-size:16px; vertical-align:middle}
+  h3{font-size:18px; font-weight:600; margin:36px 0 14px 0; color:#1e293b}
+  h4{font-size:15px; font-weight:600; margin:24px 0 10px 0; color:#334155}
+  p{margin:0 0 12px 0; color:#334155}
+  code{background:#f1f5f9; padding:2px 6px; border-radius:4px; font-size:12.5px; color:#be185d; font-family:ui-monospace,Menlo,monospace}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:24px 26px; margin-bottom:20px; box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card.callout{border-left:4px solid var(--primary); background:#fafbff}
+  .card.callout-amber{border-left:4px solid var(--warn); background:#fffaf3}
+  .card.callout-green{border-left:4px solid var(--success); background:#f7fdf9}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+  .grid-4{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+  .sys-card{border:1px solid var(--line); border-radius:14px; padding:22px 24px; background:linear-gradient(180deg, #fff 0%, #fafbff 100%)}
+  .sys-card .sys-head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+  .sys-card .sys-icon{width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; flex-shrink:0}
+  .sys-card h4{margin:0; font-size:16px; color:#0f172a}
+  .sys-card .sys-tag{font-size:11px; color:var(--muted); margin-top:2px}
+  .sys-card p{font-size:13px; color:#475569; margin:8px 0 12px 0}
+  .sys-card .meta{font-size:11.5px; color:#64748b; display:flex; flex-wrap:wrap; gap:6px 14px}
+  .sys-card .meta b{color:#0f172a; font-weight:600}
+  table{width:100%; border-collapse:collapse; margin:10px 0 4px 0; font-size:13px}
+  th,td{padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top}
+  th{background:#f8fafc; font-weight:600; color:#475569; font-size:12px; letter-spacing:.3px}
+  tr:last-child td{border-bottom:0}
+  td:first-child{font-weight:500; color:#1e293b; white-space:nowrap}
+  td .req-id{display:inline-block; padding:1px 7px; border-radius:4px; font-size:11px; background:#eef2ff; color:#4338ca; font-weight:500; font-family:ui-monospace,Menlo,monospace; margin-right:4px}
+  ul,ol{padding-left:22px; margin:8px 0 12px 0}
+  li{margin:4px 0; color:#334155}
+  .menu-tree{font-family:ui-monospace,Menlo,monospace; font-size:13px; line-height:1.9; background:#0f172a; color:#e2e8f0; padding:20px 24px; border-radius:10px; overflow-x:auto; white-space:pre}
+  .menu-tree .l1{color:#60a5fa; font-weight:600}
+  .menu-tree .l2{color:#a5b4fc; padding-left:1.6em}
+  .menu-tree .l3{color:#cbd5e1; padding-left:3.2em}
+  .menu-tree .f-id{color:#fbbf24}
+  .menu-tree .comment{color:#64748b; font-style:italic}
+  .menu-tree .future{color:#64748b; text-decoration:line-through}
+  .state-row{display:flex; align-items:center; gap:0; flex-wrap:wrap; padding:6px 0 4px 0}
+  .state{padding:8px 14px; background:#dbeafe; color:#1e3a8a; border-radius:8px; font-size:13px; font-weight:600; position:relative}
+  .state.green{background:#dcfce7; color:#14532d}
+  .state.amber{background:#fef3c7; color:#78350f}
+  .state.purple{background:#ede9fe; color:#5b21b6}
+  .state.gray{background:#e2e8f0; color:#334155}
+  .state.rose{background:#ffe4e6; color:#9f1239}
+  .arrow{color:#94a3b8; font-size:18px; padding:0 4px}
+  .flow-line{display:flex; align-items:center; padding:10px 14px; background:#f1f5f9; border-left:3px solid var(--primary); border-radius:0 8px 8px 0; margin-bottom:8px; font-size:13.5px}
+  .flow-line .step{font-weight:600; color:var(--primary); margin-right:10px; min-width:60px}
+  .flow-line .who{color:#64748b; font-size:12px; margin-left:8px}
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0}
+  .kpi{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px}
+  .kpi .v{font-size:22px; font-weight:700; color:#0f172a; line-height:1.1}
+  .kpi .l{font-size:12px; color:var(--muted); margin-top:4px}
+  .principle{padding:14px 16px; background:#f8fafc; border:1px solid var(--line); border-radius:8px; margin-bottom:10px}
+  .principle b{color:#1e40af; display:block; margin-bottom:4px}
+  .toc{background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px 24px; margin:0 0 36px 0}
+  .toc a{color:#1e40af; text-decoration:none; font-size:13px; display:inline-block; margin:3px 14px 3px 0}
+  .toc a:hover{text-decoration:underline}
+  .footer-note{margin-top:64px; padding:20px; background:#f1f5f9; border-radius:10px; font-size:12px; color:#64748b; text-align:center}
+  .role-row{display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 14px 0}
+  .role{background:#eef2ff; color:#3730a3; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:500}
+  .role.tenant{background:#fef3c7; color:#92400e}
+  .role.agent{background:#dcfce7; color:#166534}
+  .role.cust{background:#fce7f3; color:#9d174d}
+  .role.sys{background:#f1f5f9; color:#475569}
+  .mock-link{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:#dbeafe; color:#1d4ed8; border-radius:6px; text-decoration:none; font-size:12.5px; font-weight:500; margin:2px 4px 2px 0}
+  .mock-link:hover{background:#bfdbfe}
+  .mock-link::before{content:"🔗"; font-size:11px}
+  .legend{display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color:#475569; padding:8px 0}
+  .legend span::before{content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle}
+  .legend .l1::before{background:#60a5fa}
+  .legend .l2::before{background:#a5b4fc}
+  .legend .l3::before{background:#cbd5e1}
+  .legend .f::before{background:#fbbf24}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="nav-title">设计文档</div>
+    <h1 class="nav-h1">AI 智能客服系统 V1<small>数据底座版 · 原型设计</small></h1>
+    <div class="nav-group">
+      <div class="nav-group-title">总览</div>
+      <a href="#hero"><span class="ico">🏠</span>项目背景</a>
+      <a href="#systems"><span class="ico">🗂</span>5 大系统全景</a>
+      <a href="#principles"><span class="ico">🎯</span>设计原则</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">5 大系统</div>
+      <a href="#s1"><span class="ico">🛡</span>1. 平台管理后台</a>
+      <a class="sub" href="#s1-pages">↳ 关键页面</a>
+      <a href="#s2"><span class="ico">🏢</span>2. 租户运营后台</a>
+      <a class="sub" href="#s2-pages">↳ 关键页面</a>
+      <a href="#s3"><span class="ico">🎧</span>3. PC 客服工作台</a>
+      <a href="#s4"><span class="ico">💬</span>4. 客户 Web 入口</a>
+      <a href="#s5"><span class="ico">🔐</span>5. 登录与账号</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">核心机制</div>
+      <a href="#state"><span class="ico">🔄</span>会话状态机</a>
+      <a href="#flow"><span class="ico">▶</span>租户初始化流程</a>
+      <a href="#flow-msg"><span class="ico">▶</span>客户咨询主流程</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">交付物</div>
+      <a href="#deliver"><span class="ico">📦</span>原型页面清单</a>
+    </div>
+  </nav>
+
+  <main>
+    <h1 class="hero">AI 智能客服系统 V1 · 数据底座版</h1>
+    <p class="hero-sub">原型设计总览 · 基于 PRD V1.2 + 思维导图 19 项核心功能</p>
+    <div class="badge-row">
+      <span class="badge blue">V1 数据底座版</span>
+      <span class="badge green">本期 19 项功能</span>
+      <span class="badge amber">二期 20 项</span>
+      <span class="badge">扩展 18 项（P0/P1/P2）</span>
+      <span class="badge rose">5 大系统 · 7 大角色 · 5 状态</span>
+    </div>
+
+    <div class="toc">
+      <b>📋 目录</b>
+      <div style="margin-top:8px">
+        <a href="#hero">项目背景</a><a href="#systems">5 大系统</a><a href="#principles">设计原则</a>
+        <a href="#s1">系统 1 平台后台</a><a href="#s2">系统 2 租户后台</a><a href="#s3">系统 3 客服工作台</a>
+        <a href="#s4">系统 4 客户入口</a><a href="#s5">系统 5 登录</a>
+        <a href="#state">会话状态机</a><a href="#flow">初始化流程</a><a href="#flow-msg">主流程</a><a href="#deliver">原型清单</a>
+      </div>
+    </div>
+
+    <section id="hero">
+      <h2><span class="num">0</span>项目背景</h2>
+      <div class="card callout">
+        <b style="color:#1e40af">产品定位</b>：<b>"AI 优先接待 + 人工可控接管 + 全渠道统一会话 + 知识驱动回答 + 数据化持续运营"</b>
+        的多租户 SaaS/私有化客服平台。
+        <div style="margin-top:10px; color:#475569; font-size:13px">
+          V1 数据底座版聚焦 <b>全量核心实体的数据增删改查</b>（租户/客服账号/客户/会话/消息/平台配置/角色权限）+ <b>三端界面协同</b>（平台管理后台 · 租户运营后台 · PC 客服工作台）+ <b>Web 网页入口 + 多端实时同步</b>。
+          AI/知识库/客服路由/运营报表等业务能力在数据底座稳定后二期对接。
+        </div>
+      </div>
+
+      <h3>7 大核心角色</h3>
+      <div class="role-row">
+        <span class="role">🛡 超级管理员（平台级）</span>
+        <span class="role tenant">🏢 租户管理员（机构级）</span>
+        <span class="role tenant">🧑‍💼 客服主管（机构级）</span>
+        <span class="role agent">🎧 客服人员（一线）</span>
+        <span class="role sys">🤖 AI 客服（系统）</span>
+        <span class="role cust">👤 客户（外部）</span>
+        <span class="role sys">🔌 第三方系统</span>
+      </div>
+
+      <h3>4 大产品形态（与 5 大系统对应）</h3>
+      <table>
+        <thead><tr><th>产品形态</th><th>主要用户</th><th>核心内容</th><th>对应系统</th></tr></thead>
+        <tbody>
+          <tr><td>平台管理后台</td><td>超级管理员</td><td>租户、套餐与配额、平台 AI 模型、全局指标、安全与运维</td><td>系统 1</td></tr>
+          <tr><td>租户运营后台</td><td>租户管理员、客服主管</td><td>客服团队、客户、知识库、渠道、路由/SLA、质检、报表、隐私</td><td>系统 2</td></tr>
+          <tr><td>PC 客服工作台</td><td>客服人员</td><td>会话接待、客户资料、AI 辅助、转接/工单、会话结束</td><td>系统 3</td></tr>
+          <tr><td>客户服务入口</td><td>客户</td><td>Web Widget、网页聊天窗口、评价、隐私偏好</td><td>系统 4</td></tr>
+          <tr><td>登录与个人中心</td><td>全角色</td><td>JWT 登录、2FA、密码管理、Token 刷新、跨端会话</td><td>系统 5</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="systems">
+      <h2><span class="num">1</span>5 大系统全景</h2>
+      <p>基于 4.1 页面地图 + 5.5 初始化流程，把 19 项本期功能拆解到 5 个相互独立又前后承接的系统中。每个系统对应一个或多个角色的一次完整工作流。</p>
+
+      <div class="grid-3" style="margin-top:18px">
+        <div class="sys-card">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">🛡</div>
+            <div>
+              <h4>系统 1 · 平台管理后台</h4>
+              <div class="sys-tag">Platform Console · 超级管理员</div>
+            </div>
+          </div>
+          <p>负责整个 SaaS 平台的多租户治理、套餐/配额管控、平台级 AI 模型接入、全局数据看板与安全审计。</p>
+          <div class="meta"><b>功能编号：</b>F-001·F-002·F-003·F-004·F-005·F-038·F-044</div>
+          <div class="meta"><b>菜单数：</b>4 个一级 · 11 个二级</div>
+          <div class="meta"><b>关键页面：</b>5 个</div>
+        </div>
+
+        <div class="sys-card">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">🏢</div>
+            <div>
+              <h4>系统 2 · 租户运营后台</h4>
+              <div class="sys-tag">Tenant Console · 租户管理员 / 客服主管</div>
+            </div>
+          </div>
+          <p>负责单租户内的客服团队、客户档案、AI 知识库、渠道接入、运营报表等业务配置与日常运营。</p>
+          <div class="meta"><b>功能编号：</b>F-005·F-006·F-010·F-012·F-018·F-033~F-039</div>
+          <div class="meta"><b>菜单数：</b>8 个一级 · 22 个二级</div>
+          <div class="meta"><b>关键页面：</b>8 个</div>
+        </div>
+
+        <div class="sys-card">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#10b981,#059669)">🎧</div>
+            <div>
+              <h4>系统 3 · PC 客服工作台</h4>
+              <div class="sys-tag">Agent Workbench · 客服人员</div>
+            </div>
+          </div>
+          <p>三栏式工作台：左侧会话列表 / 中部消息流 / 右侧客户信息与接管面板，覆盖 F-019~F-026 全部会话能力。</p>
+          <div class="meta"><b>功能编号：</b>F-010·F-019·F-020·F-023~F-026</div>
+          <div class="meta"><b>布局：</b>左·中·右 三栏</div>
+          <div class="meta"><b>关键页面：</b>1 主 + 6 子面板</div>
+        </div>
+
+        <div class="sys-card">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#ec4899,#db2777)">💬</div>
+            <div>
+              <h4>系统 4 · 客户 Web 入口</h4>
+              <div class="sys-tag">Customer Web · 客户</div>
+            </div>
+          </div>
+          <p>嵌入式 Web Widget + 独立聊天窗口，承载访客咨询、消息收发、评价提交、隐私偏好全流程。</p>
+          <div class="meta"><b>功能编号：</b>F-026·F-029·F-030·F-035</div>
+          <div class="meta"><b>形态：</b>Web Widget 嵌入 + 独立聊天页</div>
+          <div class="meta"><b>关键页面：</b>3 个</div>
+        </div>
+
+        <div class="sys-card">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">🔐</div>
+            <div>
+              <h4>系统 5 · 登录与账号体系</h4>
+              <div class="sys-tag">Identity · 全角色</div>
+            </div>
+          </div>
+          <p>覆盖用户全生命周期认证：登录、注册/邀请、密码管理、会话管理、RBAC 鉴权（7.10 必做）。</p>
+          <div class="meta"><b>功能编号：</b>7.10（PRD 7.10 登录与账号）</div>
+          <div class="meta"><b>角色：</b>全 7 角色</div>
+          <div class="meta"><b>关键页面：</b>5 个</div>
+        </div>
+
+        <div class="sys-card" style="background:linear-gradient(135deg,#f0f9ff 0%, #e0e7ff 100%); border-color:#c7d2fe">
+          <div class="sys-head">
+            <div class="sys-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">📊</div>
+            <div>
+              <h4>数据底座 · 共享中台</h4>
+              <div class="sys-tag">Data Backbone · 横切关注</div>
+            </div>
+          </div>
+          <p>不单独成系统，但贯穿全部 5 大系统：租户隔离、消息总线、审计日志、权限校验、文件存储、AI 通道。</p>
+          <div class="meta"><b>非功能：</b>F-040·F-041·F-042·F-043</div>
+          <div class="meta"><b>组件：</b>JWT·RBAC·Socket.io·Webhook·多端同步</div>
+          <div class="meta"><b>不单独有 UI</b></div>
+        </div>
+      </div>
+
+      <h3>系统间协作关系</h3>
+      <div class="card">
+        <div class="flow-line"><span class="step">①</span>系统 1 创建租户、配置平台 AI 模型与全局策略 <span class="who">超级管理员</span></div>
+        <div class="flow-line"><span class="step">②</span>租户管理员登录系统 5 → 跳转到系统 2 完成初始化 <span class="who">租户管理员</span></div>
+        <div class="flow-line"><span class="step">③</span>系统 2 创建客服账号、配置角色与权限 <span class="who">租户管理员</span></div>
+        <div class="flow-line"><span class="step">④</span>客服登录系统 5 → 进入系统 3 开始接待 <span class="who">客服人员</span></div>
+        <div class="flow-line"><span class="step">⑤</span>客户通过系统 4 发起咨询 <span class="who">客户</span></div>
+        <div class="flow-line"><span class="step">⑥</span>消息总线在系统 3 与系统 4 之间实时同步会话与消息</div>
+        <div class="flow-line"><span class="step">⑦</span>全部会话、消息、附件、操作日志由数据底座统一记录，可由系统 1/2 检索与审计</div>
+      </div>
+    </section>
+
+    <section id="principles">
+      <h2><span class="num">2</span>设计原则</h2>
+      <div class="grid-2">
+        <div class="principle"><b>一、租户隔离是设计基线</b>所有业务对象强制 <code>tenant_id</code>，JWT 携带租户上下文，数据访问层二次注入；超级管理员跨租户操作需显式切换并记审计。</div>
+        <div class="principle"><b>二、菜单即权限边界</b>RBAC 与菜单/路由双向绑定，权限变更立刻反映在侧边栏可见性；未授权路由 403 而非 404。</div>
+        <div class="principle"><b>三、状态可见、流转可追</b>会话、AI、工单统一带状态徽章和操作日志；状态机（NEW→AI_HANDLING→QUEUED→HUMAN_HANDLING→TRANSFERRED→ENDED→EVALUATED）贯穿全端。</div>
+        <div class="principle"><b>四、数据底座优先，业务延后</b>本期所有页面聚焦"增删改查 + 列表筛选 + 详情 + 审计"，复杂业务（AI 回答、知识运营、报表分析）通过占位 + 数据接口预留，二期无缝接入。</div>
+        <div class="principle"><b>五、三端视觉一致但密度不同</b>平台/租户后台追求高密度表格与看板；工作台追求高效操作（快捷键、批量、状态色）；客户入口追求轻量、温暖、可信任。</div>
+        <div class="principle"><b>六、关键操作可回滚</b>删租户、停客服、撤权限、关知识库 → 全部走"软删除 + 二次确认 + 审计"路径，不提供不可逆的危险按钮。</div>
+      </div>
+    </section>
+
+    <section id="s1">
+      <h2><span class="num">3</span>系统 1 · 平台管理后台</h2>
+      <div class="card callout">
+        <b>系统定位：</b>面向 <b>超级管理员</b>（平台级）使用，承担"管租户、控资源、设模型、看大盘、查审计"五大职责，是 SaaS 多租户治理的"驾驶舱"。
+        所有租户级业务对象都从该系统向下授权；本系统不参与具体客服业务。
+      </div>
+
+      <h3>一级菜单与二级菜单</h3>
+      <div class="card">
+        <div class="legend">
+          <span class="l1">一级菜单</span><span class="l2">二级菜单</span><span class="f">需求编号</span>
+        </div>
+<div class="menu-tree"><span class="l1">📊 平台总览</span>                            <span class="f-id">F-004 / F-039 / F-044</span>
+<span class="l2">├─ 全局数据看板</span>             <span class="comment">租户/坐席/会话/AI/系统健康</span>
+<span class="l2">├─ 实时运行监控</span>             <span class="comment">CPU/内存/QPS/慢请求/告警</span>
+<span class="l2">└─ 公告与通知</span>               <span class="comment">向租户推送系统级公告</span>
+
+<span class="l1">🏢 租户管理</span>                                <span class="f-id">F-001 / F-002 / F-003</span>
+<span class="l2">├─ 租户列表</span>                 <span class="comment">入驻、状态、套餐、配额、用量</span>
+<span class="l2">├─ 入驻审核</span>                 <span class="comment">新租户注册审核流</span>
+<span class="l2">├─ 套餐与配额</span>               <span class="comment">坐席/AI Token/知识库容量/有效期</span>
+<span class="l2">└─ 资源使用排行</span>             <span class="comment">按租户维度用量 TOP</span>
+
+<span class="l1">⚙️ 平台配置</span>                                <span class="f-id">F-003 / F-018 / F-EXT-006</span>
+<span class="l2">├─ AI 模型管理</span>             <span class="comment">DeepSeek/通义/GLM/企业私有模型</span>
+<span class="l2">├─ 默认模型与策略</span>           <span class="comment">租户未配置时使用的兜底模型</span>
+<span class="l2">├─ 提示词与 Flow 版本</span>       <span class="comment">系统级提示词模板与回滚</span>
+<span class="l2">└─ 第三方系统参数</span>           <span class="comment">短信/邮件/对象存储/Webhook</span>
+
+<span class="l1">🛡 安全与审计</span>                              <span class="f-id">F-005 / F-038 / F-041</span>
+<span class="l2">├─ 平台角色权限</span>             <span class="comment">超级管理员/平台运维/平台审计</span>
+<span class="l2">├─ 操作审计日志</span>             <span class="comment">全平台敏感操作流水</span>
+<span class="l2">└─ 内容合规拦截</span>             <span class="comment">敏感词、违禁词命中记录</span></div>
+      </div>
+
+      <h3 id="s1-pages">关键页面字段设计</h3>
+
+      <h4>① 平台总览 · 全局数据看板（F-004）</h4>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="v">128</div><div class="l">总租户数（↑12 本周）</div></div>
+        <div class="kpi"><div class="v">96</div><div class="l">在线租户（24h）</div></div>
+        <div class="kpi"><div class="v">1,842</div><div class="l">总坐席数</div></div>
+        <div class="kpi"><div class="v">512</div><div class="l">今日会话数</div></div>
+        <div class="kpi"><div class="v">72%</div><div class="l">AI 解决率</div></div>
+        <div class="kpi"><div class="v">1.8s</div><div class="l">AI 平均响应</div></div>
+        <div class="kpi"><div class="v">99.95%</div><div class="l">系统可用性（30d）</div></div>
+        <div class="kpi"><div class="v">3</div><div class="l">活跃告警</div></div>
+      </div>
+      <p>看板顶部 8 个核心 KPI 卡（按角色权限过滤）；中部为「租户活跃曲线 / 渠道分布 / AI 转人工率 / 满意度」四张趋势图；底部为「Top10 异常租户」与「最近告警」两栏。</p>
+
+      <h4>② 租户列表（F-001 / F-002）</h4>
+      <table>
+        <thead><tr><th>字段</th><th>类型 / 规则</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>租户 ID</td><td>系统自动 · T + 6 位</td><td>全局唯一</td></tr>
+          <tr><td>租户名称</td><td>2-30 字</td><td>支持企业简称</td></tr>
+          <tr><td>租户编码</td><td>3-20 字母数字</td><td>用于子域名与 API</td></tr>
+          <tr><td>套餐</td><td>枚举：体验版 / 团队版 / 企业版 / 旗舰版</td><td>决定配额上限</td></tr>
+          <tr><td>状态</td><td>枚举：试用中 / 正常 / 欠费 / 已停用 / 已注销</td><td>状态机受 RBAC 约束</td></tr>
+          <tr><td>坐席配额 / 已用</td><td>数字 · 进度条</td><td>使用率 ≥ 80% 红色预警</td></tr>
+          <tr><td>AI Token 配额 / 已用</td><td>数字 · 进度条</td><td>按月度重置</td></tr>
+          <tr><td>知识库容量 / 已用</td><td>GB · 进度条</td></tr>
+          <tr><td>到期时间</td><td>日期</td><td>过期前 15/7/3/1 天提醒</td></tr>
+          <tr><td>创建人 / 时间</td><td>人员 + 时间</td><td>审计可查</td></tr>
+          <tr><td>操作</td><td>按钮组</td><td>查看 · 编辑 · 启停 · 续费 · 配额调整 · 注销</td></tr>
+        </tbody>
+      </table>
+
+      <h4>③ 租户详情（F-002）</h4>
+      <p>Tab 形式组织 6 个分区：<b>基础信息 / 套餐与配额 / 用量趋势 / 管理员 / 客服团队 / 操作日志</b>。每个 Tab 独立保存，提供"编辑"按钮进入修改态；关键字段（编码、状态、配额）变更需二次确认并写入审计。</p>
+
+      <h4>④ 平台配置 · AI 模型管理（F-003 / F-018）</h4>
+      <table>
+        <thead><tr><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>模型名称</td><td>展示名</td></tr>
+          <tr><td>提供方</td><td>枚举：DeepSeek / 通义千问 / GLM / OpenAI 兼容 / 企业私有 / 自定义</td></tr>
+          <tr><td>API Endpoint</td><td>URL · 必填 · https://</td></tr>
+          <tr><td>API Key</td><td>加密存储 · 仅显示后四位</td></tr>
+          <tr><td>模型标识</td><td>如 deepseek-chat、qwen-plus</td></tr>
+          <tr><td>部署模式</td><td>云端 API / 私有化 / 混合</td></tr>
+          <tr><td>支持能力</td><td>多选：对话 / Embedding / 语音 / 视觉</td></tr>
+          <tr><td>Token 限速</td><td>TPM / RPM</td></tr>
+          <tr><td>状态</td><td>启用 / 停用 / 维护中</td></tr>
+          <tr><td>健康检查</td><td>最后探测时间 / 延迟 / 状态</td></tr>
+        </tbody>
+      </table>
+      <p>提供"测试连通性"按钮（输入 prompt → 返回结果 + 延迟 + token 消耗）；支持模型版本灰度（A/B 5%/50%/100%）。</p>
+
+      <h4>⑤ 安全审计 · 操作日志（F-038）</h4>
+      <p>不可修改、可导出 CSV 的流水表。字段：时间 / 操作人 / 操作类型（30 种枚举） / 目标对象 / 变更前 → 变更后 / 客户端 IP / UA / requestId。顶部多维筛选（时间 / 操作人 / 对象类型 / 关键字），支持按租户维度过滤。</p>
+
+      <div class="card callout-amber">
+        <b>原型入口</b>：<a class="mock-link" href="./平台管理后台/平台总览.html" target="_blank">平台总览</a>
+        <a class="mock-link" href="./平台管理后台/租户列表.html" target="_blank">租户列表</a>
+        <a class="mock-link" href="./平台管理后台/租户详情.html" target="_blank">租户详情</a>
+        <a class="mock-link" href="./平台管理后台/AI模型管理.html" target="_blank">AI 模型管理</a>
+        <a class="mock-link" href="./平台管理后台/审计日志.html" target="_blank">审计日志</a>
+      </div>
+    </section>
+
+    <section id="s2">
+      <h2><span class="num">4</span>系统 2 · 租户运营后台</h2>
+      <div class="card callout">
+        <b>系统定位：</b>面向 <b>租户管理员 / 客服主管</b>（机构级），承担单租户内全部业务运营：团队管理、客户管理、知识库、AI 配置、渠道接入与数据运营。本期聚焦"配置 + 数据底座"，业务能力（AI 回答、路由、报表）以占位 + 接入点形式预留。
+      </div>
+
+      <h3>一级菜单与二级菜单</h3>
+      <div class="card">
+<div class="menu-tree"><span class="l1">🏠 工作台</span>                                  <span class="f-id">F-039 / F-044</span>
+<span class="l2">├─ 租户数据看板</span>               <span class="comment">接待量/响应/AI/满意度/告警</span>
+<span class="l2">├─ 待办与告警</span>                 <span class="comment">知识待审/SLA 风险/系统告警</span>
+<span class="l2">└─ 快捷入口</span>                   <span class="comment">创建客服/导入客户/配置 AI</span>
+
+<span class="l1">👥 客服与组织</span>                                <span class="f-id">F-005 / F-006 / F-EXT-009</span>
+<span class="l2">├─ 客服账号</span>                   <span class="comment">新增/启停/重置密码/分配角色</span>
+<span class="l2">├─ 角色与权限</span>                 <span class="comment">租户级 RBAC 模板与覆盖</span>
+<span class="l2">├─ 技能组</span>  <span class="future">[二期]</span>                <span class="comment">售前/售后/VIP/技术支持</span>
+<span class="l2">├─ 排班管理</span>  <span class="future">[二期]</span>                <span class="comment">班次/工作时间/在线统计</span>
+<span class="l2">└─ 绩效统计</span>  <span class="future">[二期]</span>                <span class="comment">接待量/响应/满意度</span>
+
+<span class="l1">👤 客户中心</span>                                  <span class="f-id">F-010 / F-011</span>
+<span class="l2">├─ 客户档案</span>                   <span class="comment">基本资料/标签/历史会话/备注</span>
+<span class="l2">├─ 客户标签</span>                   <span class="comment">VIP/高价值/投诉/长期未活跃</span>
+<span class="l2">├─ 客户分群</span>  <span class="future">[二期]</span>                <span class="comment">标签组合 + 条件规则</span>
+<span class="l2">└─ 客户导入导出</span>               <span class="comment">CSV/Excel 模板与批量任务</span>
+
+<span class="l1">📚 知识库</span>  <span class="future">[二期主体 · 本期仅占位]</span>     <span class="f-id">F-012 / F-EXT-003~005</span>
+<span class="l2">├─ 知识库列表</span>                 <span class="comment">多知识库隔离与权限</span>
+<span class="l2">├─ 文档管理</span>                   <span class="comment">FAQ/PDF/Word/Markdown</span>
+<span class="l2">├─ 命中与未命中分析</span>           <span class="comment">运营闭环</span>
+<span class="l2">└─ 审批与发布</span>                 <span class="comment">草稿/审核/发布/回滚</span>
+
+<span class="l1">🤖 AI 配置</span>                                  <span class="f-id">F-013~F-018 / F-EXT-001~002</span>
+<span class="l2">├─ 大模型</span>                     <span class="comment">从平台模型池选择并配置</span>
+<span class="l2">├─ 意图与路由</span>  <span class="future">[扩展 P0]</span>            <span class="comment">意图目录 + 技能组绑定</span>
+<span class="l2">├─ 置信度与护栏</span>  <span class="future">[扩展 P0]</span>            <span class="comment">阈值/引用/禁答主题</span>
+<span class="l2">└─ AI 转人工策略</span>              <span class="comment">触发条件 + 兜底动作</span>
+
+<span class="l1">🔌 渠道与开放</span>                                <span class="f-id">F-033 / F-035</span>
+<span class="l2">├─ Web Widget</span>                 <span class="comment">颜色/logo/位置/欢迎语/SDK</span>
+<span class="l2">├─ Open API</span>                   <span class="comment">简化版 · 会话/客户/消息</span>
+<span class="l2">└─ API Key 管理</span>               <span class="comment">生成/轮换/调用配额</span>
+
+<span class="l1">📈 数据与运营</span>                                <span class="f-id">F-036~F-039 / F-EXT-008/010/018</span>
+<span class="l2">├─ 会话检索</span>                   <span class="comment">客户/客服/时间/渠道/关键词</span>
+<span class="l2">├─ 运营报表</span>  <span class="future">[扩展]</span>                 <span class="comment">客服/AI/客户/渠道维度</span>
+<span class="l2">├─ 满意度报表</span>  <span class="future">[扩展]</span>                 <span class="comment">星级/标签/负面评价</span>
+<span class="l2">└─ SLA 与质检</span>  <span class="future">[扩展]</span>                 <span class="comment">SLA 达标/质检整改/告警</span>
+
+<span class="l1">⚙️ 设置</span>                                      <span class="f-id">7.10 账号 / F-041</span>
+<span class="l2">├─ 机构信息</span>                   <span class="comment">企业 logo/名称/客服电话/工单邮箱</span>
+<span class="l2">├─ 安全与登录</span>                 <span class="comment">2FA/密码策略/IP 白名单</span>
+<span class="l2">└─ 操作日志</span>                   <span class="comment">租户内敏感操作流水</span></div>
+      </div>
+
+      <h3 id="s2-pages">关键页面字段设计</h3>
+
+      <h4>① 租户工作台首页（首屏）</h4>
+      <p>欢迎语 + 当前租户套餐与到期日；中部 4 个 KPI（今日会话 / 在线客服 / AI 解决率 / 待处理告警）；下方分两栏：<b>左 · 实时会话动态</b>（最近 20 条进入 AI 或人工的会话，可点击进入会话详情）、<b>右 · 待办事项</b>（知识待审 / 客户分群待处理 / 客服工单转交等）。</p>
+
+      <h4>② 客服账号管理（F-006）</h4>
+      <table>
+        <thead><tr><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>姓名</td><td>必填 · 1-20 字</td></tr>
+          <tr><td>登录账号</td><td>手机号 / 邮箱 · 全租户唯一</td></tr>
+          <tr><td>角色</td><td>多选：租户管理员 / 客服主管 / 客服人员</td></tr>
+          <tr><td>技能组</td><td>多选（二期）</td></tr>
+          <tr><td>状态</td><td>待激活 / 正常 / 停用 / 离职</td></tr>
+          <tr><td>登录方式</td><td>密码 / 短信 / 2FA（可叠加）</td></tr>
+          <tr><td>最大同时接待</td><td>数字 · 默认 5</td></tr>
+          <tr><td>最近登录</td><td>时间 + IP</td></tr>
+          <tr><td>入职时间</td><td>日期</td></tr>
+        </tbody>
+      </table>
+      <p>支持"邀请注册"（生成邀请链接 / 短信，72h 过期）和"重置密码"（强制下次登录改密）。</p>
+
+      <h4>③ 客户中心 · 客户档案（F-010）</h4>
+      <p>左侧客户列表（搜索 + 标签过滤 + 来源过滤 + 状态过滤），右侧客户详情。详情 Tab：</p>
+      <ul>
+        <li><b>基础资料：</b>姓名 / 手机 / 邮箱 / 来源 / 等级 / 标签 / 备注 / 自定义字段（租户级定义）</li>
+        <li><b>历史会话：</b>按时间倒序，点击跳转会话详情</li>
+        <li><b>工单：</b>工单列表 + 状态</li>
+        <li><b>操作记录：</b>谁在什么时候改了什么字段</li>
+        <li><b>隐私请求：</b>导出 / 删除 / 更正请求处理进度</li>
+      </ul>
+      <p>敏感字段（手机 / 邮箱）按权限脱敏；数据导出走独立"导出"权限，不随查看权限下发。</p>
+
+      <h4>④ Web Widget 配置（F-029 / F-035）</h4>
+      <table>
+        <thead><tr><th>分组</th><th>字段</th></tr></thead>
+        <tbody>
+          <tr><td>基础外观</td><td>主题色 / Logo / Widget 位置（左下/右下）/ 圆角 / 展开方式（气泡/横条）</td></tr>
+          <tr><td>欢迎语</td><td>默认文案 + 多语言（V1 仅中/英）</td></tr>
+          <tr><td>接待策略</td><td>优先 AI / 优先人工 / 仅 AI / 仅人工</td></tr>
+          <tr><td>访客识别</td><td>匿名 / 登录态识别 / 自定义字段透传</td></tr>
+          <tr><td>离线留言</td><td>开关 + 留言表单字段配置</td></tr>
+          <tr><td>集成代码</td><td>一段 JS 标签 + iframe 嵌入代码（可复制）</td></tr>
+          <tr><td>预览</td><td>右侧实时预览桌面 / 移动两种尺寸</td></tr>
+        </tbody>
+      </table>
+
+      <h4>⑤ 会话检索（F-037）</h4>
+      <p>多维筛选 + 关键词全文检索（消息正文 / 客户姓名 / 客服姓名 / 客户标签）。结果列表展示：会话 ID / 客户 / 客服 / 渠道 / 状态 / 起始时间 / 消息数 / 满意度。点击进入只读会话详情（不可发送，但可标记、备注、转工单）。</p>
+
+      <h4>⑥ 操作日志（F-038 租户内）</h4>
+      <p>仅记录本租户内敏感操作（创建客服 / 修改角色 / 删除客户 / 配置变更 / 登录登出）。30/90/365 天可查，可申请 CSV 导出（导出动作本身也记录）。</p>
+
+      <div class="card callout-amber">
+        <b>原型入口</b>：<a class="mock-link" href="./租户运营后台/工作台首页.html" target="_blank">工作台首页</a>
+        <a class="mock-link" href="./租户运营后台/客服账号管理.html" target="_blank">客服账号</a>
+        <a class="mock-link" href="./租户运营后台/客户中心.html" target="_blank">客户中心</a>
+        <a class="mock-link" href="./租户运营后台/WebWidget配置.html" target="_blank">Web Widget 配置</a>
+        <a class="mock-link" href="./租户运营后台/会话检索.html" target="_blank">会话检索</a>
+      </div>
+    </section>
+
+    <section id="s3">
+      <h2><span class="num">5</span>系统 3 · PC 客服工作台</h2>
+      <div class="card callout">
+        <b>系统定位：</b>面向 <b>客服人员</b> 日常接待工作流的高频操作空间。三栏布局（会话列表 / 消息区 / 客户信息）是客服的"主战场"，覆盖 F-019 文字客服、F-020 会话管理、F-023~F-026 全部会话生命周期能力。
+      </div>
+
+      <h3>三栏布局总览（4.1 PRD）</h3>
+      <div class="card">
+        <div style="display:grid; grid-template-columns:300px 1fr 360px; gap:0; background:#f1f5f9; border-radius:10px; overflow:hidden; min-height:380px">
+          <div style="background:#fff; border-right:1px solid #e2e8f0; padding:14px">
+            <b style="font-size:13px; color:#475569">左 · 会话列表</b>
+            <div style="margin-top:10px; font-size:12.5px; color:#475569; line-height:1.9">
+              • 状态 Tab：<b>待接入 / AI 接待 / 排队中 / 我接待 / 全部</b><br>
+              • 筛选：渠道 / 优先级 / 客户标签 / SLA 风险<br>
+              • 每条：客户头像 + 姓名 / 状态徽章 / 未读数 / 最近消息摘要 / 时间<br>
+              • SLA 倒计时（绿 / 黄 / 红）
+            </div>
+          </div>
+          <div style="background:#fff; border-right:1px solid #e2e8f0; padding:14px">
+            <b style="font-size:13px; color:#475569">中 · 消息流 + 输入区</b>
+            <div style="margin-top:10px; font-size:12.5px; color:#475569; line-height:1.9">
+              • 顶部：客户信息条 + 会话状态 + 操作（转接 / 结束 / 工单 / 备注）<br>
+              • 消息流：时间 / 系统消息（"AI 接待 → 人工接管"）/ 客户气泡 / 客服气泡 / 引用知识卡<br>
+              • 输入区：文本 / 图片 / 文件 / 表情 / 快捷回复库 / AI 辅助 / 发送（Enter / Shift+Enter 换行）<br>
+              • 底部提示：响应时长 / 输入状态
+            </div>
+          </div>
+          <div style="background:#fff; padding:14px">
+            <b style="font-size:13px; color:#475569">右 · 客户 / 接管面板</b>
+            <div style="margin-top:10px; font-size:12.5px; color:#475569; line-height:1.9">
+              • 客户信息卡：基础资料 / 标签 / 等级 / 来源<br>
+              • AI 接管摘要：转人工原因 / 置信度 / 引用知识<br>
+              • 历史会话：最近 5 条<br>
+              • 自定义字段：业务侧扩展<br>
+              • 操作：转接 / 结束 / 备注 / 工单 / 邀请评价
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>会话列表 · 字段</h3>
+      <table>
+        <thead><tr><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>客户头像 + 姓名</td><td>未读时加粗</td></tr>
+          <tr><td>渠道来源</td><td>Web Widget / 第三方</td></tr>
+          <tr><td>状态徽章</td><td>NEW（灰）/ AI 接待（蓝）/ 排队（琥珀）/ 人工（绿）/ 转接（紫）/ 已结束（深灰）</td></tr>
+          <tr><td>优先级</td><td>VIP / 高 / 普通 / 低 · 配色区分</td></tr>
+          <tr><td>未读消息数</td><td>红圆点</td></tr>
+          <tr><td>最近消息摘要</td><td>30 字内</td></tr>
+          <tr><td>SLA 倒计时</td><td>剩余响应 / 处理时间</td></tr>
+          <tr><td>分配客服</td><td>头像 + 姓名</td></tr>
+          <tr><td>最后消息时间</td><td>相对时间 · 1h 内显示 X 分钟前</td></tr>
+        </tbody>
+      </table>
+
+      <h3>消息流 · 消息类型</h3>
+      <ul>
+        <li><b>文本 / 富文本：</b>支持段落、链接、加粗、列表；自动转 URL 链接</li>
+        <li><b>图片：</b>点击放大 + 旋转 + 下载</li>
+        <li><b>文件：</b>卡片展示文件名 / 大小 / 下载按钮（≤50MB）</li>
+        <li><b>系统消息：</b>"AI 已回答 2 次" / "客户已加入会话" / "会话已转接给 XX" · 居中灰色</li>
+        <li><b>AI 引用卡：</b>回答中包含的来源知识条目（点击可展开看完整内容）</li>
+        <li><b>AI 接管摘要：</b>客服点击"接管"时弹出浮层（不可跳过）</li>
+        <li><b>撤回 / 删除：</b>客服 2 分钟内可撤回；删除仅本地视图</li>
+      </ul>
+
+      <h3>输入区</h3>
+      <ul>
+        <li><b>工具栏：</b>📎 附件 / 😊 表情 / 💬 快捷回复 / 🤖 AI 辅助 / ⏱ 定时消息</li>
+        <li><b>快捷回复库（二期）：</b>个人 / 团队 / 机构三级；支持搜索、分类、变量</li>
+        <li><b>AI 辅助（二期）：</b>点击后生成"回复建议 / 知识答案 / 客户摘要"三栏建议，客服确认后发送</li>
+        <li><b>发送：</b>Enter 发送 / Shift+Enter 换行；发送中状态（loading）；失败可重试</li>
+        <li><b>输入提示：</b>字符统计 / 草稿自动保存（30s 一次）</li>
+      </ul>
+
+      <h3>状态操作（顶部按钮组）</h3>
+      <ul>
+        <li><b>转接：</b>弹窗选择目标客服 / 技能组 / 备注转接原因 → 状态流转为 TRANSFERRED</li>
+        <li><b>结束会话：</b>弹窗选择结束原因 + 是否发送评价邀请 → 状态流转为 ENDED</li>
+        <li><b>创建工单：</b>弹窗填工单字段（标题 / 类型 / 优先级 / 指派）</li>
+        <li><b>添加备注：</b>仅内部可见，不发给客户</li>
+        <li><b>邀请评价：</b>主动触发（会话中段 / 结束前）</li>
+        <li><b>查看工单：</b>跳转到工单详情</li>
+      </ul>
+
+      <h3>右侧客户 / 接管面板 · 字段</h3>
+      <table>
+        <thead><tr><th>区块</th><th>字段</th></tr></thead>
+        <tbody>
+          <tr><td>客户信息卡</td><td>头像 / 姓名 / 等级 / 来源 / 标签 / 手机（脱敏）/ 邮箱（脱敏）/ 注册时间 / 备注</td></tr>
+          <tr><td>AI 接管摘要</td><td>客户问题摘要 / AI 回答轮次 / 最后置信度 / 命中知识条目 / 转人工原因</td></tr>
+          <tr><td>历史会话</td><td>最近 5 条 · 状态 · 时间 · 消息数</td></tr>
+          <tr><td>自定义字段</td><td>租户级字段定义，客服只读</td></tr>
+          <tr><td>工单</td><td>该客户未关闭工单</td></tr>
+          <tr><td>操作</td><td>转接 / 结束 / 备注 / 工单 / 邀请评价 / 屏蔽 / 拉黑</td></tr>
+        </tbody>
+      </table>
+
+      <div class="card callout-amber">
+        <b>原型入口</b>：<a class="mock-link" href="./PC客服工作台/会话工作台.html" target="_blank">PC 客服工作台</a>
+      </div>
+    </section>
+
+    <section id="s4">
+      <h2><span class="num">6</span>系统 4 · 客户 Web 入口</h2>
+      <div class="card callout">
+        <b>系统定位：</b>面向 <b>客户</b>（外部用户）的咨询入口，包含 <b>Web Widget（嵌入式气泡）</b> 和 <b>独立聊天窗口</b> 两种形态，二者共享同一会话。客户咨询的核心动作是"发起会话 → 收发消息 → 结束 / 评价"，V1 聚焦文字消息与评价。
+      </div>
+
+      <h3>两种形态</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4 style="margin-top:0">A · Web Widget 嵌入式</h4>
+          <ul>
+            <li>第三方网站通过 <code>&lt;script&gt;</code> 引入</li>
+            <li>页面右下角悬浮气泡（可配置位置）</li>
+            <li>点击展开为聊天面板（最大宽 380px · 高 560px）</li>
+            <li>不打扰页面浏览；移动端可全屏</li>
+            <li>支持 <b>访客识别</b>（匿名 / 登录态 / 自定义透传）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0">B · 独立聊天窗口</h4>
+          <ul>
+            <li>租户直接打开 <code>{tenant}.support.com</code> 域名</li>
+            <li>全屏聊天页，含 Header / 消息区 / 输入区</li>
+            <li>适合无官网或希望直接对话的场景</li>
+            <li>支持设备指纹 + 自定义标识记住历史会话</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>关键页面 / 状态</h3>
+      <table>
+        <thead><tr><th>状态</th><th>展示</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td>折叠（气泡态）</td><td>右下角悬浮气泡 + 未读小红点</td><td>点击展开</td></tr>
+          <tr><td>欢迎态</td><td>欢迎语 + 常见问题快捷入口（V1 仅展示）</td><td>输入消息 / 点击 FAQ 预填</td></tr>
+          <tr><td>AI 接待中</td><td>客户发送 → AI 思考动效 → 回答 + 引用卡</td><td>继续输入 / 要求转人工</td></tr>
+          <tr><td>排队中</td><td>"已为您找到客服，请稍候" + 排队位置</td><td>取消 / 继续留言</td></tr>
+          <tr><td>人工接待</td><td>"客服 XX 正在为您服务" + 客服头像</td><td>正常收发消息</td></tr>
+          <tr><td>结束态</td><td>会话已结束 + 评价入口</td><td>提交评价 / 重新开始</td></tr>
+          <tr><td>离线</td><td>客服不在线 · 留言表单</td><td>提交工单</td></tr>
+        </tbody>
+      </table>
+
+      <h3>消息能力（V1）</h3>
+      <ul>
+        <li>文本（含 emoji）· 单条 ≤ 2000 字</li>
+        <li>图片（jpg/png/gif · ≤10MB · 自动压缩）</li>
+        <li>文件（≤50MB）</li>
+        <li>评价（V1 简化为星标 + 文字）</li>
+        <li>语音消息（二期 F-021）</li>
+      </ul>
+
+      <h3>隐私与同意（F-041）</h3>
+      <ul>
+        <li>首次进入时弹隐私声明（租户可配置文案）</li>
+        <li>勾选后才能发起咨询</li>
+        <li>用户可随时通过侧边入口查看、撤回同意、申请数据导出/删除</li>
+        <li>客服看到"用户已撤回同意"时该客户档案自动脱敏</li>
+      </ul>
+
+      <h3>评价（F-026 V1 简化）</h3>
+      <p>会话结束后 5 分钟内客户可评价：1-5 星 + 标签多选（"响应及时" / "专业" / "态度好" / "解决问题" / "不满意"） + 50 字内文字。<b>不评价则视为放弃，不强制打扰</b>。</p>
+
+      <div class="card callout-amber">
+        <b>原型入口</b>：<a class="mock-link" href="./客户Web入口/聊天窗口.html" target="_blank">客户聊天窗口</a>
+      </div>
+    </section>
+
+    <section id="s5">
+      <h2><span class="num">7</span>系统 5 · 登录与账号体系</h2>
+      <div class="card callout">
+        <b>系统定位：</b>覆盖全 7 角色的统一认证入口。V1 必做（PRD 7.10），包括登录、邀请注册、密码管理、Token 刷新、RBAC 鉴权。
+      </div>
+
+      <h3>关键页面</h3>
+      <table>
+        <thead><tr><th>页面</th><th>字段 / 规则</th></tr></thead>
+        <tbody>
+          <tr><td>登录页</td><td>账号 + 密码 + 记住我 + 忘记密码 + 租户选择（多租户账号登录时）</td></tr>
+          <tr><td>邀请注册</td><td>链接 / 短信邀请 · 72h 过期 · 首次登录强制改密</td></tr>
+          <tr><td>忘记密码</td><td>手机号 / 邮箱验证码 → 重置（8-20 位 · 字母+数字+特殊字符）</td></tr>
+          <tr><td>首次登录改密</td><td>强校验 + 不能与最近 3 次密码相同</td></tr>
+          <tr><td>个人中心</td><td>基础资料 / 修改密码 / 2FA 绑定 / 登录设备管理 / 消息通知偏好</td></tr>
+        </tbody>
+      </table>
+
+      <h3>权限模型（RBAC + Tenant）</h3>
+      <ul>
+        <li><b>角色：</b>超级管理员 / 租户管理员 / 客服主管 / 客服人员 / 客户 / AI 客服 / 第三方系统</li>
+        <li><b>权限：</b>菜单权限 / 操作权限 / 数据权限（本人 / 本组 / 本租户 / 全部）</li>
+        <li><b>JWT 携带：</b><code>user_id</code> · <code>tenant_id</code> · <code>role</code> · <code>permissions</code></li>
+        <li><b>Token 策略：</b>Access Token 2h · Refresh Token 7d · 滑动续期</li>
+        <li><b>2FA：</b>租户级开关 + 超级管理员 / 租户管理员默认开启</li>
+      </ul>
+
+      <h3>会话管理</h3>
+      <ul>
+        <li>多端登录会话可在"个人中心 → 设备管理"中查看与踢出</li>
+        <li>异地 / 异常 IP 登录触发短信 / 邮件告警</li>
+        <li>5 次密码错误锁定 30 分钟</li>
+        <li>所有登录 / 登出 / 改密 / 2FA 变更进入审计</li>
+      </ul>
+
+      <div class="card callout-amber">
+        <b>原型入口</b>：<a class="mock-link" href="./登录页.html" target="_blank">登录页</a>
+      </div>
+    </section>
+
+    <section id="state">
+      <h2><span class="num">8</span>会话状态机</h2>
+      <p>贯穿系统 3（工作台）与系统 4（客户入口）的核心状态机。状态变化必须在 UI 上明确可见，并写入操作日志。</p>
+
+      <div class="card">
+        <div class="state-row">
+          <span class="state gray">NEW<br>待接入</span><span class="arrow">→</span>
+          <span class="state">AI_HANDLING<br>AI 接待中</span><span class="arrow">→</span>
+          <span class="state amber">QUEUED<br>排队中</span><span class="arrow">→</span>
+          <span class="state green">HUMAN_HANDLING<br>人工接待中</span><span class="arrow">→</span>
+          <span class="state purple">TRANSFERRED<br>已转接</span><span class="arrow">→</span>
+          <span class="state gray">ENDED<br>已结束</span><span class="arrow">→</span>
+          <span class="state rose">EVALUATED<br>已评价</span>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>状态</th><th>含义</th><th>进入条件</th><th>离开条件</th></tr></thead>
+        <tbody>
+          <tr><td>NEW 待接入</td><td>渠道已创建会话</td><td>客户首次消息</td><td>进入 AI_HANDLING</td></tr>
+          <tr><td>AI_HANDLING AI 接待中</td><td>AI 处理中</td><td>新会话 / 人工不可用回退</td><td>AI 解决 → 结束；转人工 → QUEUED</td></tr>
+          <tr><td>QUEUED 排队中</td><td>等待人工客服</td><td>低置信度 / 客户要求 / 策略触发</td><td>分配成功 → HUMAN_HANDLING；超时回 AI / 升级</td></tr>
+          <tr><td>HUMAN_HANDLING 人工接待中</td><td>人工已接管</td><td>客服确认接管</td><td>转接 / 结束 / 工单协同</td></tr>
+          <tr><td>TRANSFERRED 已转接</td><td>会话转交其他客服 / 技能组</td><td>人工转接 / 升级</td><td>新客服接管</td></tr>
+          <tr><td>ENDED 已结束</td><td>服务已结束</td><td>AI 或人工完成 / 客户结束 / 超时</td><td>触发评价</td></tr>
+          <tr><td>EVALUATED 已评价</td><td>客户已评价</td><td>客户评价</td><td>终态</td></tr>
+        </tbody>
+      </table>
+
+      <h3>AI 转人工触发条件（F-015）</h3>
+      <ul>
+        <li>AI 置信度低于场景阈值</li>
+        <li>连续多次无法回答或知识未命中</li>
+        <li>客户明确要求人工</li>
+        <li>命中敏感 / 高风险 / 投诉 / 禁答规则</li>
+        <li>AI / 知识检索 / 模型依赖异常</li>
+        <li>租户配置的业务规则主动要求人工</li>
+      </ul>
+
+      <h3>人工接管要求（F-015 · 5.4）</h3>
+      <ul>
+        <li>转人工必须携带 <b>历史聊天记录 + 客户信息 + AI 会话摘要 + 用户问题摘要 + 转人工原因</b></li>
+        <li>摘要生成失败时必须展示原始消息，不得阻塞接管</li>
+        <li>同一会话仅允许一个主接待者处于发送权限状态</li>
+        <li>接管超时触发 SLA 提醒 / 升级</li>
+      </ul>
+    </section>
+
+    <section id="flow">
+      <h2><span class="num">9</span>租户初始化流程（5.5）</h2>
+      <p>产品上线的必经路径。任一环节失败均应给出明确提示并支持重试；租户未完成初始化时，客服入口不应对外可见。</p>
+      <div class="card">
+        <div class="flow-line"><span class="step">①</span>超级管理员创建租户并配置套餐与配额 <span class="who">系统 1</span></div>
+        <div class="flow-line"><span class="step">②</span>租户管理员首次登录并设置密码 <span class="who">系统 5 → 系统 2</span></div>
+        <div class="flow-line"><span class="step">③</span>创建客服团队（账号、角色、技能组）<span class="who">系统 2 客服与组织</span></div>
+        <div class="flow-line"><span class="step">④</span>上传知识库（FAQ / PDF / Word / Markdown）<span class="who">系统 2 知识库（占位）</span></div>
+        <div class="flow-line"><span class="step">⑤</span>配置 AI 模型与回答策略 <span class="who">系统 2 AI 配置</span></div>
+        <div class="flow-line"><span class="step">⑥</span>发布客服入口（Web Widget / 网页聊天窗口）<span class="who">系统 2 渠道与开放</span></div>
+        <div class="flow-line"><span class="step">⑦</span>客户发起咨询 <span class="who">系统 4 → 流程 10</span></div>
+      </div>
+    </section>
+
+    <section id="flow-msg">
+      <h2><span class="num">10</span>客户咨询主流程（5.1）</h2>
+      <div class="card">
+        <div class="flow-line"><span class="step">①</span>客户从 Web 网页客服入口发起咨询 <span class="who">系统 4</span></div>
+        <div class="flow-line"><span class="step">②</span>渠道适配层统一消息格式并创建 / 恢复会话</div>
+        <div class="flow-line"><span class="step">③</span>新会话默认进入 AI 接待：意图识别 → RAG 检索 → 上下文组装 → LLM 生成</div>
+        <div class="flow-line"><span class="step">④</span>AI 护栏：置信度、引用、高风险 / 禁答 → 直接回复 / 追问 / 阻断 / 转人工</div>
+        <div class="flow-line"><span class="step">⑤</span>需要人工时进入会话路由：技能组 → 在线客服 → 负载 / 轮询 / VIP / 熟客 → 排队</div>
+        <div class="flow-line"><span class="step">⑥</span>人工客服接管后获得摘要、上下文、客户信息、转人工原因 + AI 辅助 <span class="who">系统 3</span></div>
+        <div class="flow-line"><span class="step">⑦</span>问题解决后结束会话，向客户触发评价 <span class="who">系统 4</span></div>
+        <div class="flow-line"><span class="step">⑧</span>会话 / 消息 / 附件 / AI 轨迹 / 转接 / 评价 / 审计全部保存，进入运营统计</div>
+      </div>
+    </section>
+
+    <section id="deliver">
+      <h2><span class="num">11</span>原型页面交付清单</h2>
+      <p>本设计文档配套的 6 份可视化原型（位于 <code>docs/原型设计/</code> 目录）：</p>
+
+      <table>
+        <thead><tr><th>#</th><th>页面</th><th>系统</th><th>对应 F 编号</th><th>本地路径</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>登录页</td><td>系统 5</td><td>7.10</td><td><a class="mock-link" href="./登录页.html" target="_blank">登录页.html</a></td></tr>
+          <tr><td>2</td><td>平台总览</td><td>系统 1</td><td>F-004 / F-039 / F-044</td><td><a class="mock-link" href="./平台管理后台/平台总览.html" target="_blank">平台总览.html</a></td></tr>
+          <tr><td>3</td><td>租户列表</td><td>系统 1</td><td>F-001 / F-002</td><td><a class="mock-link" href="./平台管理后台/租户列表.html" target="_blank">租户列表.html</a></td></tr>
+          <tr><td>4</td><td>PC 客服工作台</td><td>系统 3</td><td>F-019 / F-020 / F-010</td><td><a class="mock-link" href="./PC客服工作台/会话工作台.html" target="_blank">会话工作台.html</a></td></tr>
+          <tr><td>5</td><td>Web Widget 客户聊天窗口</td><td>系统 4</td><td>F-029 / F-035 / F-026</td><td><a class="mock-link" href="./客户Web入口/聊天窗口.html" target="_blank">聊天窗口.html</a></td></tr>
+          <tr><td>6</td><td>租户工作台首页</td><td>系统 2</td><td>F-039</td><td><a class="mock-link" href="./租户运营后台/工作台首页.html" target="_blank">工作台首页.html</a></td></tr>
+        </tbody>
+      </table>
+
+      <h3>视觉与交互规范（建议）</h3>
+      <div class="grid-2">
+        <div class="principle"><b>主色</b>主色 #2563eb（蓝）；辅色 #7c3aed（紫，AI 相关）；成功 #16a34a；告警 #d97706；危险 #dc2626；中性灰阶 9 级。</div>
+        <div class="principle"><b>字体</b>中文 PingFang SC / Microsoft YaHei；英文 Inter / SF Pro；等宽 ui-monospace；正文 14px，标题 16/18/24/34px。</div>
+        <div class="principle"><b>圆角</b>卡片 12px · 按钮 6px · 输入 8px · 徽章 999px</div>
+        <div class="principle"><b>间距</b>基础 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 / 64px · 8 的倍数优先</div>
+        <div class="principle"><b>状态色</b>NEW 灰 / AI 蓝 / QUEUED 琥珀 / HUMAN 绿 / TRANSFERRED 紫 / ENDED 深灰 / EVALUATED 玫红</div>
+        <div class="principle"><b>可访问性</b>所有交互元素 ≥ 32px 高度 · 焦点环 2px · 对比度 ≥ AA · 支持键盘导航（PRD F-042）</div>
+      </div>
+    </section>
+
+    <div class="footer-note">
+      本文档基于 PRD V1.2 数据底座版（E:/ai客服_prd/AI智能客服系统_PRD_V1.2_数据底座版.docx）与第一期产品思维导图（D:/ai-customer-service-system/AI智能客服系统 第一期产品思维导图.pdf）整理。<br>
+      19 项本期功能 + 5 大系统 + 7 大角色 + 5 状态机 + 2 大核心流程的完整设计映射。
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,49 @@
+request_id: tech-design-v1
+entry_type: full_pipeline
+created_at: 2026-08-21T14:31:00+08:00
+current_stage: 3
+
+stages:
+  stage_0:
+    status: completed
+    completed_at: 2026-08-21T14:31:05+08:00
+    entry_type: full_pipeline
+    decision: 用户要求基于简化后的设计文档生成技术选型与实现说明书 → 从零创作 → full_pipeline
+
+  stage_1:
+    status: completed
+    started_at: 2026-08-21T14:31:06+08:00
+    completed_at: 2026-08-21T14:33:30+08:00
+    entry: doc-writer
+    route_tag: general_writing
+    genre: general
+    expert_used: general-writer
+    output_path: stage1/final_draft.md
+    critic_decision: skip (L1 general 低风险默认 skip)
+
+  stage_2:
+    status: completed
+    entry: doc-formatter
+    stage2_flow: true
+    intermediate_dir: stage2/intermediate/
+    output_path: stage2/formatted-技术选型说明书.html
+
+  stage_3:
+    status: completed
+    entry: doc-converter
+    executor: doc-converter
+    skill_used: [html-to-docx]
+    input_format: html
+    html_output_path: stage2/formatted-技术选型说明书.html
+    output_path: stage3/output.docx
+    present_files_opened: true
+    fallback: false
+    fallback_reason: null
+    warnings: []
+
+consistency_check:
+  chain: [S1 创作, S2 排版, S3 转换]
+  all_stages_completed: true
+  final_deliverable: output/tech-design-v1/stage3/output.docx
+
+updated_at: 2026-08-21T14:40:00+08:00

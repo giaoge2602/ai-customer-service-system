@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>租户列表 · 系统 1</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:#f1f5f9; color:#0f172a; font-size:13.5px}
+  .app{display:grid; grid-template-columns:230px 1fr; min-height:100vh}
+  .side{background:linear-gradient(180deg, #0f172a 0%, #1e293b 100%); color:#e2e8f0; padding:18px 0; position:sticky; top:0; height:100vh; overflow-y:auto}
+  .side .brand{padding:0 18px 18px; border-bottom:1px solid #334155; margin-bottom:12px}
+  .side .brand h1{font-size:15px; color:#f8fafc; display:flex; align-items:center; gap:8px}
+  .side .brand .ico{width:28px; height:28px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px}
+  .side .brand small{font-size:10.5px; color:#94a3b8; display:block; margin-top:3px; font-weight:400}
+  .nav-group{padding:6px 0}
+  .nav-title{font-size:10.5px; color:#64748b; padding:8px 18px 4px; letter-spacing:1px; text-transform:uppercase; font-weight:600}
+  .nav-item{display:flex; align-items:center; gap:10px; padding:9px 18px; color:#cbd5e1; font-size:13px; cursor:pointer; border-left:3px solid transparent}
+  .nav-item:hover{background:rgba(255,255,255,.04); color:#fff}
+  .nav-item.active{background:rgba(59,130,246,.12); color:#fff; border-left-color:#3b82f6; font-weight:500}
+  .nav-item .ico{width:18px; text-align:center; font-size:14px; color:#94a3b8}
+  .nav-item.active .ico{color:#60a5fa}
+  .nav-item .tag{margin-left:auto; font-size:10px; background:#7c3aed; color:#fff; padding:1px 6px; border-radius:10px}
+  main{padding:0}
+  .topbar{background:#fff; border-bottom:1px solid #e2e8f0; padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10}
+  .crumbs{font-size:13px; color:#64748b}
+  .crumbs b{color:#0f172a}
+  .topbar-right{display:flex; align-items:center; gap:16px}
+  .search{width:280px; height:34px; padding:0 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#0f172a}
+  .ico-btn{width:34px; height:34px; border-radius:8px; background:transparent; border:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:15px; color:#475569}
+  .ico-btn:hover{background:#f1f5f9}
+  .ico-btn .dot{position:absolute}
+  .user{display:flex; align-items:center; gap:8px; padding:4px 10px 4px 4px; border-radius:8px; cursor:pointer}
+  .avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600}
+  .user .name{font-size:13px; color:#0f172a; font-weight:500}
+  .user .role{font-size:11px; color:#64748b}
+  .content{padding:24px}
+  .page-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px}
+  .page-head h1{font-size:22px; color:#0f172a; font-weight:700}
+  .page-head p{font-size:13px; color:#64748b; margin-top:2px}
+  .actions{display:flex; gap:10px}
+  .btn{padding:9px 16px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; border:1px solid #e2e8f0; background:#fff; color:#334155; display:inline-flex; align-items:center; gap:6px; font-family:inherit}
+  .btn:hover{background:#f8fafc; border-color:#cbd5e1}
+  .btn-primary{background:linear-gradient(90deg,#2563eb,#4f46e5); color:#fff; border:0; box-shadow:0 2px 6px rgba(37,99,235,.2)}
+  .btn-primary:hover{background:linear-gradient(90deg,#1d4ed8,#4338ca); box-shadow:0 4px 12px rgba(37,99,235,.3)}
+  .btn-danger{color:#dc2626; border-color:#fecaca; background:#fef2f2}
+  .btn-danger:hover{background:#fee2e2}
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .badge{display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:500; background:#eef2ff; color:#4338ca}
+  .stats-bar{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px}
+  .stat{background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; cursor:pointer; transition:all .15s}
+  .stat:hover{border-color:#cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,.04)}
+  .stat .l{font-size:12px; color:#64748b; margin-bottom:4px}
+  .stat .v{font-size:18px; font-weight:700; color:#0f172a}
+  .stat.active{border-color:#2563eb; background:#eff6ff}
+  .stat.active .l{color:#1d4ed8}
+  .stat.active .v{color:#1d4ed8}
+  .filters{background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px 18px; margin-bottom:14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+  .filter-input{height:34px; padding:0 12px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; background:#f8fafc; min-width:160px; color:#0f172a; font-family:inherit}
+  .filter-input:focus{outline:0; border-color:#2563eb; background:#fff}
+  .filter-select{height:34px; padding:0 28px 0 12px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; background:#f8fafc; color:#0f172a; font-family:inherit; appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat:no-repeat; background-position:right 10px center}
+  .filter-label{font-size:12.5px; color:#64748b; font-weight:500}
+  .table-card{background:#fff; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden}
+  .table-card table{width:100%; border-collapse:collapse}
+  .table-card th{background:#f8fafc; padding:11px 14px; text-align:left; font-size:11.5px; font-weight:600; color:#475569; letter-spacing:.3px; border-bottom:1px solid #e2e8f0}
+  .table-card td{padding:14px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155; vertical-align:middle}
+  .table-card tr:hover td{background:#fafbff}
+  .table-card tr:last-child td{border-bottom:0}
+  .status-pill{display:inline-block; padding:2px 9px; border-radius:4px; font-size:11.5px; font-weight:500}
+  .p-green{background:#dcfce7; color:#15803d}
+  .p-amber{background:#fef3c7; color:#b45309}
+  .p-red{background:#fee2e2; color:#b91c1c}
+  .p-blue{background:#dbeafe; color:#1d4ed8}
+  .p-gray{background:#e2e8f0; color:#475569}
+  .p-purple{background:#ede9fe; color:#6d28d9}
+  .progress-row{min-width:140px}
+  .progress-row .top{display:flex; justify-content:space-between; font-size:11.5px; color:#475569; margin-bottom:4px}
+  .progress-row .top b{color:#0f172a}
+  .progress-row .bar{height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden}
+  .progress-row .fill{height:100%; border-radius:3px; background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+  .progress-row .fill.amber{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .progress-row .fill.red{background:linear-gradient(90deg,#dc2626,#f87171)}
+  .progress-row .fill.green{background:linear-gradient(90deg,#16a34a,#4ade80)}
+  .tenant-id{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#64748b; margin-top:2px}
+  .tenant-name{font-weight:500; color:#0f172a}
+  .row-act{display:flex; gap:6px; justify-content:flex-end}
+  .row-act .ico-act{width:28px; height:28px; border-radius:6px; background:transparent; border:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; color:#475569}
+  .row-act .ico-act:hover{background:#f1f5f9; color:#0f172a}
+  .tenant-logo{width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; margin-right:10px; flex-shrink:0}
+  .cell-flex{display:flex; align-items:center}
+  .table-card th .check{padding-left:0}
+  .table-card td .check{padding-left:0}
+  .checkbox{width:16px; height:16px; accent-color:#2563eb}
+  .pagination{padding:14px 18px; display:flex; align-items:center; justify-content:space-between; background:#fafbff; border-top:1px solid #e2e8f0}
+  .pagination .info{font-size:12.5px; color:#64748b}
+  .page-btn{height:30px; min-width:30px; padding:0 8px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; font-size:12.5px; color:#475569; cursor:pointer; margin:0 2px; font-family:inherit}
+  .page-btn:hover{background:#f8fafc}
+  .page-btn.active{background:#2563eb; color:#fff; border-color:#2563eb}
+  .bulk-bar{background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:12px; font-size:13px}
+  .bulk-bar b{color:#1d4ed8}
+  .f-tag{font-size:11px; padding:2px 7px; border-radius:4px; background:#fff; color:#475569; border:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <h1><span class="ico">🛡</span>平台管理后台</h1>
+      <small>Platform Console · V1</small>
+    </div>
+    <div class="nav-group">
+      <div class="nav-title">驾驶舱</div>
+      <div class="nav-item"><span class="ico">📊</span>平台总览</div>
+      <div class="nav-item"><span class="ico">📈</span>实时运行监控</div>
+      <div class="nav-item"><span class="ico">📢</span>公告与通知</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-title">租户治理</div>
+      <div class="nav-item active"><span class="ico">🏢</span>租户列表</div>
+      <div class="nav-item"><span class="ico">✅</span>入驻审核 <span class="tag">3</span></div>
+      <div class="nav-item"><span class="ico">📦</span>套餐与配额</div>
+      <div class="nav-item"><span class="ico">🏆</span>资源使用排行</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-title">平台配置</div>
+      <div class="nav-item"><span class="ico">🤖</span>AI 模型管理</div>
+      <div class="nav-item"><span class="ico">⚙️</span>默认模型策略</div>
+      <div class="nav-item"><span class="ico">📝</span>提示词版本</div>
+      <div class="nav-item"><span class="ico">🔌</span>第三方参数</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-title">安全与审计</div>
+      <div class="nav-item"><span class="ico">🛡</span>平台角色权限</div>
+      <div class="nav-item"><span class="ico">📋</span>操作审计日志</div>
+      <div class="nav-item"><span class="ico">⚠️</span>内容合规拦截</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="crumbs">系统 1 · 平台管理后台 / 租户治理 / <b>租户列表</b></div>
+      <div class="topbar-right">
+        <input class="search" placeholder="🔍 搜索租户名称 / 编码 / 域名">
+        <button class="ico-btn">🔔</button>
+        <div class="user">
+          <div class="avatar">SA</div>
+          <div><div class="name">Super Admin</div><div class="role">超级管理员</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>租户列表</h1>
+          <p>管理 SaaS 平台全部租户的入驻、状态、套餐、配额与用量</p>
+          <div class="badge-row">
+            <span class="badge">F-001 多租户平台</span>
+            <span class="badge">F-002 租户管理</span>
+            <span class="badge">F-003 平台配置</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn">📥 批量导入</button>
+          <button class="btn">📤 导出 CSV</button>
+          <button class="btn btn-primary">+ 新增租户</button>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat active"><div class="l">全部租户</div><div class="v">128</div></div>
+        <div class="stat"><div class="l">试用中</div><div class="v" style="color:#1d4ed8">12</div></div>
+        <div class="stat"><div class="l">正常</div><div class="v" style="color:#15803d">108</div></div>
+        <div class="stat"><div class="l">欠费</div><div class="v" style="color:#d97706">4</div></div>
+        <div class="stat"><div class="l">已停用</div><div class="v" style="color:#b91c1c">3</div></div>
+        <div class="stat"><div class="l">即将到期（7天）</div><div class="v" style="color:#d97706">5</div></div>
+      </div>
+
+      <div class="bulk-bar">
+        <b>已选 2 项</b>
+        <span class="f-tag">批量启停</span>
+        <span class="f-tag">批量改套餐</span>
+        <span class="f-tag">发送站内通知</span>
+        <span class="f-tag" style="color:#dc2626; border-color:#fecaca">注销</span>
+        <span style="margin-left:auto; font-size:12px; color:#64748b; cursor:pointer">取消选择</span>
+      </div>
+
+      <div class="filters">
+        <input class="filter-input" placeholder="🔍 租户名称 / 编码">
+        <select class="filter-select">
+          <option>全部套餐</option><option>体验版</option><option>团队版</option><option>企业版</option><option>旗舰版</option>
+        </select>
+        <select class="filter-select">
+          <option>全部状态</option><option>试用中</option><option>正常</option><option>欠费</option><option>已停用</option>
+        </select>
+        <select class="filter-select">
+          <option>用量预警</option><option>全部</option><option>坐席 ≥ 80%</option><option>Token ≥ 80%</option><option>知识库 ≥ 80%</option>
+        </select>
+        <select class="filter-select">
+          <option>到期时间：全部</option><option>7 天内</option><option>30 天内</option><option>已过期</option>
+        </select>
+        <button class="btn" style="padding:7px 12px; height:34px">重置</button>
+        <button class="btn btn-primary" style="padding:7px 14px; height:34px">查询</button>
+      </div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th class="check"><input class="checkbox" type="checkbox"></th>
+              <th>租户</th>
+              <th>套餐 / 状态</th>
+              <th>坐席配额</th>
+              <th>AI Token（本月）</th>
+              <th>知识库容量</th>
+              <th>到期时间</th>
+              <th>创建</th>
+              <th style="text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input class="checkbox" type="checkbox" checked></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo">示</div>
+                  <div>
+                    <div class="tenant-name">示例科技</div>
+                    <div class="tenant-id">T000001 · shi-ai.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-purple">企业版</span>
+                <div style="margin-top:4px"><span class="status-pill p-green">正常</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>32</b> / 50</span><span style="color:#15803d">64%</span></div>
+                <div class="bar"><div class="fill green" style="width:64%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>8.2M</b> / 10M</span><span style="color:#b45309">82%</span></div>
+                <div class="bar"><div class="fill amber" style="width:82%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>2.1</b> / 20 GB</span><span>10%</span></div>
+                <div class="bar"><div class="fill" style="width:10%"></div></div>
+              </td>
+              <td>2026-11-15 <span class="status-pill p-amber" style="margin-left:6px">87天</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Super Admin</div>
+                <div>2026-01-15</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act" title="查看">👁</button>
+                  <button class="ico-act" title="编辑">✏</button>
+                  <button class="ico-act" title="续费">💳</button>
+                  <button class="ico-act" title="配额">📊</button>
+                  <button class="ico-act" title="更多">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input class="checkbox" type="checkbox" checked></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo" style="background:linear-gradient(135deg,#10b981,#0ea5e9)">蓝</div>
+                  <div>
+                    <div class="tenant-name">蓝海教育</div>
+                    <div class="tenant-id">T000002 · lan-hai.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-blue">团队版</span>
+                <div style="margin-top:4px"><span class="status-pill p-amber">试用中</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>8</b> / 20</span><span>40%</span></div>
+                <div class="bar"><div class="fill" style="width:40%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>1.6M</b> / 5M</span><span>32%</span></div>
+                <div class="bar"><div class="fill" style="width:32%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>0.3</b> / 10 GB</span><span>3%</span></div>
+                <div class="bar"><div class="fill" style="width:3%"></div></div>
+              </td>
+              <td>2026-08-24 <span class="status-pill p-red" style="margin-left:6px">3天</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Super Admin</div>
+                <div>2026-07-20</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act">👁</button>
+                  <button class="ico-act">✏</button>
+                  <button class="ico-act">💳</button>
+                  <button class="ico-act">📊</button>
+                  <button class="ico-act">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input class="checkbox" type="checkbox"></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo" style="background:linear-gradient(135deg,#f59e0b,#dc2626)">云</div>
+                  <div>
+                    <div class="tenant-name">云链金融</div>
+                    <div class="tenant-id">T000003 · yun-lian.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-purple">旗舰版</span>
+                <div style="margin-top:4px"><span class="status-pill p-green">正常</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>186</b> / 200</span><span style="color:#b45309">93%</span></div>
+                <div class="bar"><div class="fill amber" style="width:93%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>42M</b> / 50M</span><span style="color:#b91c1c">84%</span></div>
+                <div class="bar"><div class="fill red" style="width:84%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>32</b> / 100 GB</span><span>32%</span></div>
+                <div class="bar"><div class="fill" style="width:32%"></div></div>
+              </td>
+              <td>2027-03-12 <span class="status-pill p-green" style="margin-left:6px">203天</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Zhang.W</div>
+                <div>2026-03-12</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act">👁</button>
+                  <button class="ico-act">✏</button>
+                  <button class="ico-act">💳</button>
+                  <button class="ico-act">📊</button>
+                  <button class="ico-act">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input class="checkbox" type="checkbox"></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)">星</div>
+                  <div>
+                    <div class="tenant-name">星耀电商</div>
+                    <div class="tenant-id">T000004 · xing-yao.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-blue">企业版</span>
+                <div style="margin-top:4px"><span class="status-pill p-green">正常</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>42</b> / 50</span><span style="color:#b45309">84%</span></div>
+                <div class="bar"><div class="fill amber" style="width:84%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>6.8M</b> / 10M</span><span>68%</span></div>
+                <div class="bar"><div class="fill" style="width:68%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>4.2</b> / 20 GB</span><span>21%</span></div>
+                <div class="bar"><div class="fill" style="width:21%"></div></div>
+              </td>
+              <td>2026-10-08 <span class="status-pill p-amber" style="margin-left:6px">49天</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Wang.M</div>
+                <div>2025-12-08</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act">👁</button>
+                  <button class="ico-act">✏</button>
+                  <button class="ico-act">💳</button>
+                  <button class="ico-act">📊</button>
+                  <button class="ico-act">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input class="checkbox" type="checkbox"></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo" style="background:linear-gradient(135deg,#06b6d4,#10b981)">悦</div>
+                  <div>
+                    <div class="tenant-name">悦动健身</div>
+                    <div class="tenant-id">T000005 · yue-dong.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-blue">团队版</span>
+                <div style="margin-top:4px"><span class="status-pill p-red">欠费</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>12</b> / 20</span><span>60%</span></div>
+                <div class="bar"><div class="fill" style="width:60%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>2.1M</b> / 5M</span><span>42%</span></div>
+                <div class="bar"><div class="fill" style="width:42%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>0.8</b> / 10 GB</span><span>8%</span></div>
+                <div class="bar"><div class="fill" style="width:8%"></div></div>
+              </td>
+              <td>2026-08-24 <span class="status-pill p-red" style="margin-left:6px">3天</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Li.Q</div>
+                <div>2026-04-20</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act">👁</button>
+                  <button class="ico-act">✏</button>
+                  <button class="ico-act">💳</button>
+                  <button class="ico-act">📊</button>
+                  <button class="ico-act">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input class="checkbox" type="checkbox"></td>
+              <td>
+                <div class="cell-flex">
+                  <div class="tenant-logo" style="background:linear-gradient(135deg,#64748b,#94a3b8)">科</div>
+                  <div>
+                    <div class="tenant-name">科创新材料</div>
+                    <div class="tenant-id">T000006 · ke-chuang.support.com</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="status-pill p-purple">企业版</span>
+                <div style="margin-top:4px"><span class="status-pill p-red">已停用</span></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>0</b> / 50</span><span>0%</span></div>
+                <div class="bar"><div class="fill" style="width:0%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>0</b> / 10M</span><span>0%</span></div>
+                <div class="bar"><div class="fill" style="width:0%"></div></div>
+              </td>
+              <td class="progress-row">
+                <div class="top"><span>已用 <b>0</b> / 20 GB</span><span>0%</span></div>
+                <div class="bar"><div class="fill" style="width:0%"></div></div>
+              </td>
+              <td>2026-05-12 <span class="status-pill p-gray" style="margin-left:6px">已过期</span></td>
+              <td style="font-size:12px; color:#64748b">
+                <div>Super Admin</div>
+                <div>2025-08-12</div>
+              </td>
+              <td>
+                <div class="row-act">
+                  <button class="ico-act">👁</button>
+                  <button class="ico-act">✏</button>
+                  <button class="ico-act" style="color:#16a34a" title="恢复">↻</button>
+                  <button class="ico-act" style="color:#dc2626" title="注销">×</button>
+                  <button class="ico-act">⋯</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination">
+          <div class="info">共 <b style="color:#0f172a">128</b> 条 · 已选 2 项</div>
+          <div style="display:flex; align-items:center">
+            <button class="page-btn">‹</button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">…</button>
+            <button class="page-btn">11</button>
+            <button class="page-btn">›</button>
+            <span style="margin:0 12px; font-size:12.5px; color:#64748b">每页</span>
+            <select class="filter-select" style="height:30px; padding:0 24px 0 8px">
+              <option>20 条/页</option><option>50 条/页</option><option>100 条/页</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PC 客服工作台 · 系统 3</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:#f1f5f9; color:#0f172a; font-size:13.5px; overflow:hidden}
+  .app{display:grid; grid-template-rows:48px 1fr; height:100vh}
+  .topbar{background:#0f172a; color:#e2e8f0; display:flex; align-items:center; padding:0 16px; gap:14px}
+  .brand{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; padding-right:14px; border-right:1px solid #334155}
+  .brand .ico{width:30px; height:30px; background:linear-gradient(135deg,#10b981,#0ea5e9); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px}
+  .tabs{display:flex; gap:4px; flex:1}
+  .tab{padding:7px 14px; font-size:13px; color:#94a3b8; cursor:pointer; border-radius:6px; display:flex; align-items:center; gap:6px}
+  .tab:hover{background:rgba(255,255,255,.05); color:#fff}
+  .tab.active{background:#1e293b; color:#fff}
+  .tab .count{font-size:11px; padding:1px 7px; background:#3b82f6; color:#fff; border-radius:10px; font-weight:600}
+  .topbar-right{display:flex; align-items:center; gap:14px}
+  .status-online{display:flex; align-items:center; gap:6px; font-size:12.5px; padding:4px 10px; background:rgba(34,197,94,.15); color:#86efac; border-radius:999px}
+  .status-online::before{content:""; width:7px; height:7px; background:#22c55e; border-radius:50%; box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  .ico-btn{width:32px; height:32px; border-radius:6px; background:transparent; border:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; color:#94a3b8; position:relative}
+  .ico-btn:hover{background:rgba(255,255,255,.05); color:#fff}
+  .ico-btn .dot{position:absolute; top:4px; right:4px; width:7px; height:7px; background:#dc2626; border-radius:50%; border:2px solid #0f172a}
+  .user{display:flex; align-items:center; gap:8px; padding:3px 10px 3px 3px; border-radius:6px; cursor:pointer}
+  .user:hover{background:rgba(255,255,255,.05)}
+  .avatar{width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#10b981,#0ea5e9); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600}
+  .user .name{font-size:12.5px; color:#e2e8f0; font-weight:500}
+  .user .role{font-size:10.5px; color:#94a3b8}
+  .workbench{display:grid; grid-template-columns:300px 1fr 360px; height:calc(100vh - 48px); background:#fff}
+  .left{background:#fafbff; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; overflow:hidden}
+  .left-head{padding:12px 14px; border-bottom:1px solid #e2e8f0; background:#fff}
+  .left-head .search{width:100%; height:32px; padding:0 12px 0 32px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:12.5px; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>"); background-repeat:no-repeat; background-position:10px center; font-family:inherit; color:#0f172a}
+  .left-head .filter-row{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap}
+  .filter-chip{font-size:11px; padding:3px 8px; background:#f1f5f9; border-radius:6px; color:#475569; cursor:pointer; display:flex; align-items:center; gap:4px}
+  .filter-chip:hover{background:#e2e8f0}
+  .left-body{flex:1; overflow-y:auto}
+  .session-item{padding:12px 14px; border-bottom:1px solid #f1f5f9; cursor:pointer; position:relative; display:flex; gap:10px; transition:background .15s}
+  .session-item:hover{background:#fff}
+  .session-item.active{background:#eff6ff; border-left:3px solid #2563eb; padding-left:11px}
+  .session-item.unread{background:#f0f9ff}
+  .session-item .av{width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff; font-weight:600}
+  .session-item .body{flex:1; min-width:0}
+  .session-item .top{display:flex; justify-content:space-between; align-items:center; margin-bottom:2px}
+  .session-item .name{font-size:13px; font-weight:500; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .session-item .time{font-size:11px; color:#94a3b8; flex-shrink:0; margin-left:6px}
+  .session-item .preview{font-size:12px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.5; margin-bottom:4px}
+  .session-item.unread .preview{color:#0f172a; font-weight:500}
+  .session-item .meta{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+  .tag-pill{font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:500}
+  .tp-vip{background:linear-gradient(90deg,#fbbf24,#f59e0b); color:#fff}
+  .tp-ai{background:#dbeafe; color:#1d4ed8}
+  .tp-h{background:#dcfce7; color:#15803d}
+  .tp-q{background:#fef3c7; color:#b45309}
+  .tp-t{background:#ede9fe; color:#6d28d9}
+  .tp-gray{background:#e2e8f0; color:#475569}
+  .unread-dot{width:6px; height:6px; background:#dc2626; border-radius:50%; flex-shrink:0}
+  .sla{font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:600}
+  .sla-ok{background:#dcfce7; color:#15803d}
+  .sla-warn{background:#fef3c7; color:#b45309}
+  .sla-risk{background:#fee2e2; color:#b91c1c}
+  .middle{display:flex; flex-direction:column; background:#fff; overflow:hidden}
+  .conv-head{padding:14px 20px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:14px; background:#fff}
+  .conv-head .av{width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600}
+  .conv-head .info{flex:1; min-width:0}
+  .conv-head .top{display:flex; align-items:center; gap:8px; margin-bottom:2px}
+  .conv-head .name{font-size:15px; font-weight:600; color:#0f172a}
+  .conv-head .meta{font-size:11.5px; color:#64748b; display:flex; gap:8px; align-items:center}
+  .conv-head .meta span::before{content:"·"; margin-right:8px; color:#cbd5e1}
+  .conv-head .meta span:first-child::before{display:none}
+  .conv-head .acts{display:flex; gap:6px}
+  .act-btn{padding:6px 12px; border:1px solid #e2e8f0; background:#fff; border-radius:6px; font-size:12.5px; color:#475569; cursor:pointer; display:flex; align-items:center; gap:4px; font-family:inherit}
+  .act-btn:hover{background:#f8fafc; border-color:#cbd5e1}
+  .act-btn.primary{background:linear-gradient(90deg,#2563eb,#4f46e5); color:#fff; border:0}
+  .act-btn.danger{color:#dc2626; border-color:#fecaca; background:#fef2f2}
+  .conv-body{flex:1; overflow-y:auto; padding:20px 24px; background:linear-gradient(180deg, #f8fafc 0%, #fff 30%)}
+  .msg-time{text-align:center; font-size:11px; color:#94a3b8; margin:6px 0 12px}
+  .msg{display:flex; gap:10px; margin-bottom:16px; align-items:flex-start}
+  .msg.user{flex-direction:row-reverse}
+  .msg .av{width:36px; height:36px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff; font-weight:600}
+  .msg.bot .av{background:linear-gradient(135deg,#3b82f6,#7c3aed)}
+  .msg.agent .av{background:linear-gradient(135deg,#10b981,#0ea5e9)}
+  .msg.user .av{background:linear-gradient(135deg,#f59e0b,#dc2626)}
+  .msg .col{max-width:64%; display:flex; flex-direction:column}
+  .msg.user .col{align-items:flex-end}
+  .msg .who{font-size:11px; color:#94a3b8; margin-bottom:3px; display:flex; align-items:center; gap:6px}
+  .msg .who b{color:#475569; font-weight:500}
+  .bubble{padding:10px 14px; border-radius:12px; font-size:13.5px; line-height:1.7; word-wrap:break-word; max-width:100%}
+  .msg.bot .bubble{background:#fff; color:#0f172a; border:1px solid #e2e8f0; border-bottom-left-radius:4px; box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .msg.agent .bubble{background:linear-gradient(135deg,#10b981,#0ea5e9); color:#fff; border-bottom-left-radius:4px}
+  .msg.user .bubble{background:linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border-bottom-right-radius:4px}
+  .quote-card{margin-top:8px; padding:10px 12px; background:#f1f5f9; border-left:3px solid #3b82f6; border-radius:6px; font-size:12.5px; color:#475569; line-height:1.6}
+  .quote-card b{color:#1d4ed8; display:block; font-size:11.5px; margin-bottom:4px}
+  .quote-card em{font-style:normal; color:#0f172a; background:#fef9c3; padding:0 2px}
+  .system-row{text-align:center; margin:14px 0}
+  .system-msg{font-size:11.5px; color:#94a3b8; background:#f1f5f9; padding:5px 12px; border-radius:999px; display:inline-block}
+  .system-msg.purple{background:#ede9fe; color:#6d28d9}
+  .system-msg.amber{background:#fef3c7; color:#b45309}
+  .ai-summary{background:linear-gradient(135deg, #eff6ff 0%, #ede9fe 100%); border:1px solid #c7d2fe; border-radius:12px; padding:14px 16px; margin:14px 0; font-size:12.5px; color:#3730a3; line-height:1.6; max-width:64%}
+  .ai-summary h4{font-size:13px; color:#1e40af; margin-bottom:8px; display:flex; align-items:center; gap:6px; font-weight:600}
+  .ai-summary .row{margin:6px 0; color:#475569}
+  .ai-summary .row b{color:#0f172a; font-weight:500; display:inline-block; min-width:80px}
+  .ai-summary .row .conf{display:inline-block; padding:1px 8px; background:#dcfce7; color:#15803d; border-radius:4px; font-size:11px; font-weight:500}
+  .ai-summary .row .conf.low{background:#fee2e2; color:#b91c1c}
+  .conv-foot{flex-shrink:0; border-top:1px solid #e2e8f0; background:#fff; padding:12px 16px}
+  .conv-foot .toolbar{display:flex; align-items:center; gap:6px; padding-bottom:8px; border-bottom:1px solid #f1f5f9; margin-bottom:8px}
+  .tool{font-size:12px; padding:5px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; color:#475569; cursor:pointer; display:flex; align-items:center; gap:4px; font-family:inherit}
+  .tool:hover{background:#f1f5f9; color:#0f172a}
+  .tool.active{background:#dbeafe; color:#1d4ed8; border-color:#93c5fd}
+  .tool.ai{background:linear-gradient(90deg,#ede9fe,#fce7f3); color:#6d28d9; border-color:#c4b5fd}
+  .input-area{min-height:64px; max-height:200px; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13.5px; color:#0f172a; outline:0; font-family:inherit; resize:none; width:100%; line-height:1.6}
+  .input-area:focus{border-color:#3b82f6; background:#fff}
+  .send-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px 0 4px; font-size:12px; color:#94a3b8}
+  .send-row .right-act{display:flex; align-items:center; gap:10px}
+  .send-btn{padding:6px 18px; background:linear-gradient(90deg,#2563eb,#4f46e5); color:#fff; border:0; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:4px}
+  .send-btn:hover{transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,.3)}
+  .right{background:#fafbff; border-left:1px solid #e2e8f0; display:flex; flex-direction:column; overflow:hidden}
+  .right-tabs{display:flex; border-bottom:1px solid #e2e8f0; background:#fff; padding:0 14px}
+  .rtab{padding:11px 14px; font-size:12.5px; color:#64748b; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; font-weight:500}
+  .rtab.active{color:#2563eb; border-bottom-color:#2563eb}
+  .right-body{flex:1; overflow-y:auto; padding:16px}
+  .cust-card{background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; margin-bottom:14px}
+  .cust-card .head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+  .cust-card .av{width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:600}
+  .cust-card .name{font-size:14px; font-weight:600; color:#0f172a; display:flex; align-items:center; gap:6px}
+  .cust-card .lv{font-size:10.5px; padding:1px 6px; background:linear-gradient(90deg,#fbbf24,#f59e0b); color:#fff; border-radius:4px; font-weight:500}
+  .cust-card .phone{font-size:12px; color:#64748b; margin-top:2px}
+  .cust-card .tags{display:flex; gap:4px; flex-wrap:wrap; margin-top:8px}
+  .tag{font-size:10.5px; padding:2px 7px; background:#eef2ff; color:#4338ca; border-radius:4px}
+  .field-row{display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0; color:#475569}
+  .field-row b{color:#0f172a; font-weight:500; max-width:60%; text-align:right}
+  .section-title{font-size:11.5px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin:14px 0 8px 0; display:flex; align-items:center; justify-content:space-between}
+  .section-title .more{font-size:11px; color:#2563eb; cursor:pointer; font-weight:500; text-transform:none; letter-spacing:0}
+  .hist-item{padding:8px 10px; background:#f8fafc; border-radius:8px; margin-bottom:6px; font-size:12px; cursor:pointer; border:1px solid transparent}
+  .hist-item:hover{background:#f1f5f9; border-color:#e2e8f0}
+  .hist-item .top{display:flex; justify-content:space-between; color:#475569}
+  .hist-item .top b{color:#0f172a; font-weight:500}
+  .hist-item .time{color:#94a3b8; font-size:11px}
+  .hist-item .bot{color:#64748b; font-size:11.5px; margin-top:2px}
+  .ai-aux-panel{background:linear-gradient(135deg,#ede9fe 0%,#fce7f3 100%); border:1px solid #c4b5fd; border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12.5px}
+  .ai-aux-panel h4{font-size:12.5px; color:#6d28d9; margin-bottom:8px; display:flex; align-items:center; gap:5px; font-weight:600}
+  .aux-suggestion{background:#fff; border-radius:8px; padding:10px 12px; font-size:12px; color:#334155; line-height:1.6; margin-bottom:6px; cursor:pointer; border:1px solid #e9d5ff}
+  .aux-suggestion:hover{background:#faf5ff; border-color:#c4b5fd}
+  .aux-suggestion .lbl{font-size:10.5px; color:#7c3aed; margin-bottom:4px; font-weight:500}
+  .act-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:10px}
+  .act-tile{padding:8px 10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; font-size:11.5px; color:#475569; text-align:center; cursor:pointer}
+  .act-tile:hover{background:#f8fafc; border-color:#cbd5e1}
+  .act-tile.danger{color:#dc2626; border-color:#fecaca; background:#fef2f2}
+  .act-tile.danger:hover{background:#fee2e2}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="ico">🎧</div>
+      <div>示例科技 · 客服工作台</div>
+    </div>
+    <div class="tabs">
+      <div class="tab active">全部会话 <span class="count">8</span></div>
+      <div class="tab">待接入 <span class="count" style="background:#3b82f6">3</span></div>
+      <div class="tab">AI 接待中 <span class="count" style="background:#3b82f6">5</span></div>
+      <div class="tab">排队中</div>
+      <div class="tab">我接待 <span class="count" style="background:#3b82f6">2</span></div>
+      <div class="tab">已结束</div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-online">在线 · 工作中</div>
+      <button class="ico-btn" title="搜索">🔍</button>
+      <button class="ico-btn" title="快捷键">⌨</button>
+      <button class="ico-btn" title="设置">⚙</button>
+      <button class="ico-btn" title="通知">🔔<span class="dot"></span></button>
+      <div class="user">
+        <div class="avatar">小</div>
+        <div><div class="name">小李</div><div class="role">客服 · 售前组</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="workbench">
+    <!-- 左：会话列表 -->
+    <div class="left">
+      <div class="left-head">
+        <input class="search" placeholder="搜索客户 / 会话 / 关键词">
+        <div class="filter-row">
+          <div class="filter-chip">📌 全部</div>
+          <div class="filter-chip">🚨 SLA 风险</div>
+          <div class="filter-chip">⭐ VIP</div>
+          <div class="filter-chip">👤 我的</div>
+          <div class="filter-chip">🌐 Web</div>
+        </div>
+      </div>
+      <div class="left-body">
+        <div class="session-item active">
+          <div class="av" style="background:linear-gradient(135deg,#f59e0b,#dc2626)">王</div>
+          <div class="body">
+            <div class="top"><div class="name">王女士 <span class="tag-pill tp-vip">VIP</span></div><div class="time">11:18</div></div>
+            <div class="preview">请问这个产品什么时候有货？</div>
+            <div class="meta">
+              <span class="tag-pill tp-h">人工</span>
+              <span class="sla sla-warn">⏱ 3分钟</span>
+              <div class="unread-dot"></div>
+            </div>
+          </div>
+        </div>
+        <div class="session-item unread">
+          <div class="av" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">陈</div>
+          <div class="body">
+            <div class="top"><div class="name">陈先生</div><div class="time">11:15</div></div>
+            <div class="preview">订单 A20260819001 的物流我看不太懂，能帮我看一下吗？</div>
+            <div class="meta">
+              <span class="tag-pill tp-ai">AI 接待</span>
+              <span class="sla sla-ok">⏱ 7分钟</span>
+              <div class="unread-dot"></div>
+            </div>
+          </div>
+        </div>
+        <div class="session-item">
+          <div class="av" style="background:linear-gradient(135deg,#10b981,#0ea5e9)">张</div>
+          <div class="body">
+            <div class="top"><div class="name">张女士</div><div class="time">11:08</div></div>
+            <div class="preview">已结束 · 4 消息 · 1 评价</div>
+            <div class="meta">
+              <span class="tag-pill tp-gray">已结束</span>
+              <span style="color:#fbbf24; font-size:11px">★★★★☆</span>
+            </div>
+          </div>
+        </div>
+        <div class="session-item unread">
+          <div class="av" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)">李</div>
+          <div class="body">
+            <div class="top"><div class="name">李先生</div><div class="time">10:55</div></div>
+            <div class="preview">我想转人工客服</div>
+            <div class="meta">
+              <span class="tag-pill tp-q">排队中</span>
+              <span class="sla sla-risk">⏱ 1位</span>
+              <div class="unread-dot"></div>
+            </div>
+          </div>
+        </div>
+        <div class="session-item">
+          <div class="av" style="background:linear-gradient(135deg,#06b6d4,#10b981)">刘</div>
+          <div class="body">
+            <div class="top"><div class="name">刘女士</div><div class="time">10:42</div></div>
+            <div class="preview">AI 已回答 3 次，未解决</div>
+            <div class="meta">
+              <span class="tag-pill tp-ai">AI 接待</span>
+              <span class="sla sla-warn">⏱ 12分钟</span>
+            </div>
+          </div>
+        </div>
+        <div class="session-item">
+          <div class="av" style="background:linear-gradient(135deg,#7c3aed,#ec4899)">赵</div>
+          <div class="body">
+            <div class="top"><div class="name">赵女士 <span class="tag-pill tp-vip">VIP</span></div><div class="time">10:30</div></div>
+            <div class="preview">已转接给售后组 · 等待接管</div>
+            <div class="meta">
+              <span class="tag-pill tp-t">已转接</span>
+            </div>
+          </div>
+        </div>
+        <div class="session-item">
+          <div class="av" style="background:linear-gradient(135deg,#64748b,#94a3b8)">周</div>
+          <div class="body">
+            <div class="top"><div class="name">周先生</div><div class="time">10:18</div></div>
+            <div class="preview">请问发票怎么开？</div>
+            <div class="meta">
+              <span class="tag-pill tp-ai">AI 接待</span>
+              <span class="sla sla-ok">⏱ 5分钟</span>
+            </div>
+          </div>
+        </div>
+        <div class="session-item">
+          <div class="av" style="background:linear-gradient(135deg,#f97316,#ef4444)">孙</div>
+          <div class="body">
+            <div class="top"><div class="name">孙先生</div><div class="time">09:45</div></div>
+            <div class="preview">已结束 · 8 消息</div>
+            <div class="meta">
+              <span class="tag-pill tp-gray">已结束</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中：消息流 -->
+    <div class="middle">
+      <div class="conv-head">
+        <div class="av">王</div>
+        <div class="info">
+          <div class="top">
+            <div class="name">王女士</div>
+            <span class="tag-pill tp-vip">VIP</span>
+            <span class="tag-pill tp-h">人工接待</span>
+          </div>
+          <div class="meta">
+            <span>📱 138****8888</span>
+            <span>🌐 Web Widget</span>
+            <span>🏷 高价值客户</span>
+            <span>📅 注册于 2024-08-12</span>
+            <span>🕐 入会话 3 分钟</span>
+          </div>
+        </div>
+        <div class="acts">
+          <button class="act-btn">🔄 转接</button>
+          <button class="act-btn">📋 工单</button>
+          <button class="act-btn">📝 备注</button>
+          <button class="act-btn">⭐ 邀请评价</button>
+          <button class="act-btn danger">✕ 结束</button>
+        </div>
+      </div>
+
+      <div class="conv-body">
+        <div class="msg-time">11:16 · 会话开始</div>
+
+        <div class="msg user">
+          <div class="av">王</div>
+          <div class="col">
+            <div class="who"><b>王女士</b> · 11:16 · Web Widget</div>
+            <div class="bubble">你们这个新品什么时候有货？我已经等了两周了</div>
+          </div>
+        </div>
+
+        <div class="msg bot">
+          <div class="av">AI</div>
+          <div class="col">
+            <div class="who"><b>AI 智能客服</b> · 11:16 · 已回答 1 次</div>
+            <div class="bubble">
+              您好！感谢您对我们新品的关注。根据最新库存信息：
+              <div class="quote-card">
+                <b>📦 引用知识库</b>
+                商品「X100 Pro 智能耳机」预计 <em>2026-08-25（下周一）</em> 补货完成，届时可立即下单。
+              </div>
+              是否需要为您预约到货通知？
+            </div>
+          </div>
+        </div>
+
+        <div class="msg user">
+          <div class="av">王</div>
+          <div class="col">
+            <div class="who"><b>王女士</b> · 11:17</div>
+            <div class="bubble">好的麻烦帮我预约一下，我是 VIP 客户，希望第一时间拿到</div>
+          </div>
+        </div>
+
+        <div class="system-row"><div class="system-msg">⏱ 等待 AI 处理中（置信度低 · 已 8s）</div></div>
+
+        <div class="msg bot">
+          <div class="av">AI</div>
+          <div class="col">
+            <div class="who"><b>AI 智能客服</b> · 11:18</div>
+            <div class="bubble">
+              检测到您希望<em>第一时间拿货</em>，且涉及<em>VIP 优先权益</em>，建议由人工客服为您确认到货通知的精确时间与专属优惠，请问是否转接？
+            </div>
+          </div>
+        </div>
+
+        <div class="system-row"><div class="system-msg purple">🔄 AI 转人工 · 触发原因：置信度低（0.42）+ VIP 客户要求</div></div>
+
+        <div class="ai-summary">
+          <h4>🤖 AI 接管摘要</h4>
+          <div class="row"><b>客户问题</b>商品 X100 Pro 到货时间，希望预约到货通知</div>
+          <div class="row"><b>AI 轮次</b>2 次 · 最后置信度 <span class="conf low">0.42（低）</span></div>
+          <div class="row"><b>命中知识</b>1 条（库存与到货时间）</div>
+          <div class="row"><b>转人工原因</b>客户为 VIP，咨询涉及优先权益 + 到货时间确认</div>
+          <div class="row"><b>建议回复</b>确认 8/25 到货 + 申请 VIP 优先发货 + 提示预约</div>
+        </div>
+
+        <div class="msg agent">
+          <div class="av">小</div>
+          <div class="col">
+            <div class="who"><b>小李</b> · 11:18 · 已接管</div>
+            <div class="bubble">王女士您好，我是 VIP 客服小李，已为您确认：该商品将于 8/25（下周一）上午 10:00 补货。我已为您开通优先发货通道，预约到货通知 9:00 提前推送，请保持电话畅通~</div>
+          </div>
+        </div>
+
+        <div class="msg user">
+          <div class="av">王</div>
+          <div class="col">
+            <div class="who"><b>王女士</b> · 11:19</div>
+            <div class="bubble">好的谢谢！辛苦了</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="conv-foot">
+        <div class="toolbar">
+          <button class="tool">📎 附件</button>
+          <button class="tool">😊 表情</button>
+          <button class="tool">💬 快捷回复</button>
+          <button class="tool">📋 模板</button>
+          <button class="tool">⏱ 定时消息</button>
+          <button class="tool ai">🤖 AI 辅助回复</button>
+        </div>
+        <textarea class="input-area" placeholder="输入消息... Enter 发送 · Shift+Enter 换行"></textarea>
+        <div class="send-row">
+          <span>已保存草稿 · 0/2000</span>
+          <div class="right-act">
+            <span style="color:#94a3b8">⏱ 响应计时 32s</span>
+            <button class="send-btn">发送 ➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：客户/接管面板 -->
+    <div class="right">
+      <div class="right-tabs">
+        <div class="rtab active">客户信息</div>
+        <div class="rtab">AI 摘要</div>
+        <div class="rtab">历史会话</div>
+        <div class="rtab">操作</div>
+      </div>
+      <div class="right-body">
+        <div class="cust-card">
+          <div class="head">
+            <div class="av">王</div>
+            <div>
+              <div class="name">王女士 <span class="lv">VIP</span></div>
+              <div class="phone">📱 138****8888</div>
+            </div>
+          </div>
+          <div class="tags">
+            <span class="tag">高价值</span>
+            <span class="tag">复购 5 次</span>
+            <span class="tag">数码产品</span>
+            <span class="tag">客服偏好：响应快</span>
+          </div>
+        </div>
+
+        <div class="field-row"><span>客户 ID</span><b>U239841</b></div>
+        <div class="field-row"><span>来源</span><b>Web Widget</b></div>
+        <div class="field-row"><span>邮箱</span><b>wa**@example.com</b></div>
+        <div class="field-row"><span>注册时间</span><b>2024-08-12</b></div>
+        <div class="field-row"><span>累计消费</span><b>¥ 12,860</b></div>
+        <div class="field-row"><span>历史会话</span><b>23 次 · 平均满意度 4.6</b></div>
+
+        <div class="section-title">自定义字段 <span class="more">+ 添加</span></div>
+        <div class="field-row"><span>所属行业</span><b>互联网</b></div>
+        <div class="field-row"><span>公司规模</span><b>50-200 人</b></div>
+        <div class="field-row"><span>对接销售</span><b>张老师（已离职）</b></div>
+
+        <div class="section-title">🤖 AI 接管摘要 <span class="more">查看详情</span></div>
+        <div class="ai-aux-panel">
+          <h4>📋 会话摘要</h4>
+          <div class="aux-suggestion">
+            <div class="lbl">💡 客户问题</div>
+            商品 X100 Pro 到货时间 + 预约到货通知
+          </div>
+          <div class="aux-suggestion">
+            <div class="lbl">🎯 转人工原因</div>
+            VIP 客户 + 涉及优先权益，AI 置信度低
+          </div>
+          <div class="aux-suggestion">
+            <div class="lbl">✨ 推荐回复</div>
+            确认 8/25 上午 10:00 补货 · 开通优先发货 · 9:00 推送通知
+          </div>
+        </div>
+
+        <div class="section-title">最近会话 <span class="more">查看全部 (23)</span></div>
+        <div class="hist-item">
+          <div class="top"><b>2026-08-15</b><span class="time">已结束 · 5⭐</span></div>
+          <div class="bot">物流查询 · 4 消息</div>
+        </div>
+        <div class="hist-item">
+          <div class="top"><b>2026-08-02</b><span class="time">已结束 · 4⭐</span></div>
+          <div class="bot">订单修改 · 6 消息</div>
+        </div>
+        <div class="hist-item">
+          <div class="top"><b>2026-07-20</b><span class="time">已结束 · 5⭐</span></div>
+          <div class="bot">退换货咨询 · 8 消息</div>
+        </div>
+
+        <div class="section-title">快捷操作</div>
+        <div class="act-grid">
+          <div class="act-tile">🔄 转接</div>
+          <div class="act-tile">📋 创建工单</div>
+          <div class="act-tile">📝 添加备注</div>
+          <div class="act-tile">⭐ 邀请评价</div>
+          <div class="act-tile">🏷 修改标签</div>
+          <div class="act-tile">🔇 禁言</div>
+          <div class="act-tile">🚫 拉黑</div>
+          <div class="act-tile danger">✕ 结束会话</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

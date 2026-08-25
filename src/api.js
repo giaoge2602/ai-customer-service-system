@@ -1,0 +1,79 @@
+const API_BASE = '/api/v1'
+const SESSION_KEY = 'ai-customer-service-session'
+
+function readAccessToken() {
+  try {
+    const session = JSON.parse(window.sessionStorage.getItem(SESSION_KEY))
+    return session?.accessToken || ''
+  } catch {
+    return ''
+  }
+}
+
+async function authRequest(path, options = {}) {
+  const token = readAccessToken()
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+    ...options,
+  })
+  const body = await response.json()
+  if (!response.ok) {
+    throw new Error(body.message || `请求失败 (${response.status})`)
+  }
+  return body.data ?? body
+}
+
+// ==================== 客服坐席管理（F-006） ====================
+
+export async function fetchAgents(params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', params.page)
+  if (params.pageSize) query.set('pageSize', params.pageSize)
+  if (params.search) query.set('search', params.search)
+  if (params.tenantId) query.set('tenantId', params.tenantId)
+  const suffix = query.toString() ? `?${query}` : ''
+  return authRequest(`/agents${suffix}`)
+}
+
+export async function updateAgentStatus(id, status) {
+  return authRequest(`/agents/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+// ==================== 租户管理（F-002） ====================
+
+export async function fetchTenants(params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', params.page)
+  if (params.pageSize) query.set('pageSize', params.pageSize)
+  if (params.search) query.set('search', params.search)
+  const suffix = query.toString() ? `?${query}` : ''
+  return authRequest(`/tenants${suffix}`)
+}
+
+export async function updateTenantStatus(id, status) {
+  return authRequest(`/tenants/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export async function createTenant(payload) {
+  return authRequest('/tenants', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateTenant(id, payload) {
+  return authRequest(`/tenants/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}

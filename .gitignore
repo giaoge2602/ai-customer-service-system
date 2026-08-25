@@ -6,3 +6,5 @@ dist/
 .workbuddy/
 temp_doc*.txt
 extract_docs.ps1
+~$*
+*.tmp

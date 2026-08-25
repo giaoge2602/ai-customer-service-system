@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { agents, auditLogs, channels, customers, knowledgeDocs, models, organizationStats, platformStats, routingRules, services, tenants } from './adminData'
+import { auditLogs, channels, customers, knowledgeDocs, models, organizationStats, platformStats, routingRules, services } from './adminData'
+import { createTenant, fetchAgents, fetchTenants, updateAgentStatus, updateTenant, updateTenantStatus } from './api'
 
 const AIcon = ({ name, size = 17 }) => {
   const paths = {
@@ -33,7 +34,7 @@ const platformNav = [
   { group: '安全与运维', items: [{ id: 'audit', label: '安全与审计', icon: 'shield' }, { id: 'monitoring', label: '运维监控', icon: 'chart' }] },
 ]
 const orgNav = [
-  { group: '运营工作区', items: [{ id: 'overview', label: '机构总览', icon: 'grid' }, { id: 'workbench', label: '客服工作台', icon: 'chat' }] },
+  { group: '运营工作区', items: [{ id: 'overview', label: '机构总览', icon: 'grid' }] },
   { group: '客户与组织', items: [{ id: 'people', label: '客服与组织', icon: 'users' }, { id: 'customers', label: '客户中心', icon: 'users' }] },
   { group: 'AI 服务', items: [{ id: 'knowledge', label: '知识库', icon: 'database' }, { id: 'ai', label: 'AI 与路由策略', icon: 'route' }, { id: 'channels', label: '渠道接入', icon: 'channel' }] },
   { group: '数据与运营', items: [{ id: 'operations', label: '服务运营', icon: 'chart' }] },
@@ -44,11 +45,42 @@ function currentModule(pathname, mode) {
   return pathname.startsWith(prefix) ? pathname.slice(prefix.length).split('/')[0] || 'overview' : 'overview'
 }
 
+function mapAgent(agent) {
+  return {
+    id: agent.id,
+    name: agent.name,
+    initials: agent.name.slice(0, 1),
+    role: '客服专员',
+    email: agent.email,
+    status: agent.status === 'active' ? 'online' : 'offline',
+    statusText: agent.status === 'active' ? '在线' : '离线',
+    groups: [],
+    sessions: 0,
+    response: '—',
+    satisfaction: '—',
+  }
+}
+
+function mapTenant(tenant) {
+  return {
+    id: tenant.id,
+    name: tenant.name,
+    industry: '—',
+    plan: '标准版',
+    status: tenant.status,
+    statusText: tenant.status === 'active' ? '运行中' : '已停用',
+    agents: `${tenant.agentCount ?? 0}`,
+    conversations: String(tenant.conversationCount ?? 0),
+    usage: 0,
+    lastActive: '—',
+  }
+}
+
 export default function AdminConsole({ mode = 'platform', session, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [localTenants, setLocalTenants] = useState(tenants)
-  const [localAgents, setLocalAgents] = useState(agents)
+  const [localTenants, setLocalTenants] = useState([])
+  const [localAgents, setLocalAgents] = useState([])
   const [localDocs, setLocalDocs] = useState(knowledgeDocs)
   const [localRules, setLocalRules] = useState(routingRules)
   const [localChannels, setLocalChannels] = useState(channels)
@@ -56,42 +88,89 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
   const [toast, setToast] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [modalTitle, setModalTitle] = useState('')
+  const [tenantModal, setTenantModal] = useState(null)
   const module = currentModule(location.pathname, mode)
+
+  const loadTenants = () => fetchTenants().then((data) => setLocalTenants((data.items || []).map(mapTenant))).catch(() => setLocalTenants([]))
+
+  useEffect(() => {
+    if (mode === 'platform') {
+      loadTenants()
+    } else {
+      fetchAgents({ tenantId: session.tenantId || 'TENANT-018' })
+        .then((data) => setLocalAgents((data.items || []).map(mapAgent)))
+        .catch(() => setLocalAgents([]))
+    }
+  }, [mode])
   const nav = mode === 'platform' ? platformNav : orgNav
   const isPlatform = mode === 'platform'
 
   const notify = (text) => { setToast(text); window.setTimeout(() => setToast(''), 2400) }
   const go = (id) => navigate(`${isPlatform ? '/platform' : '/organization'}/${id}`)
   const openModal = (title) => { setModalTitle(title); setShowModal(true) }
+  const submitTenantForm = async (name) => {
+    if (tenantModal.mode === 'create') {
+      await createTenant({ name })
+      notify('机构已创建并写入数据库')
+    } else {
+      await updateTenant(tenantModal.tenant.id, { name })
+      notify('机构信息已更新并写入数据库')
+    }
+    setTenantModal(null)
+    loadTenants()
+  }
   const filteredTenants = useMemo(() => localTenants.filter((item) => `${item.name} ${item.id} ${item.industry}`.toLowerCase().includes(query.toLowerCase())), [localTenants, query])
   const filteredAgents = useMemo(() => localAgents.filter((item) => `${item.name} ${item.role} ${item.groups.join(' ')}`.toLowerCase().includes(query.toLowerCase())), [localAgents, query])
   const filteredDocs = useMemo(() => localDocs.filter((item) => `${item.name} ${item.type}`.toLowerCase().includes(query.toLowerCase())), [localDocs, query])
 
-  const toggleTenant = (id) => setLocalTenants((items) => items.map((item) => item.id === id ? { ...item, status: item.status === 'paused' ? 'active' : 'paused', statusText: item.status === 'paused' ? '运行中' : '已停用' } : item))
-  const toggleAgent = (id) => { setLocalAgents((items) => items.map((item) => item.id === id ? { ...item, status: item.status === 'offline' ? 'online' : 'offline', statusText: item.status === 'offline' ? '在线' : '离线' } : item)); notify('客服状态已更新') }
+  const toggleTenant = async (id) => {
+    const target = localTenants.find((item) => item.id === id)
+    if (!target) return
+    const nextStatus = target.status === 'paused' ? 'active' : 'paused'
+    try {
+      await updateTenantStatus(id, nextStatus)
+      setLocalTenants((items) => items.map((item) => item.id === id ? { ...item, status: nextStatus, statusText: nextStatus === 'active' ? '运行中' : '已停用' } : item))
+      notify('租户状态已更新并写入数据库')
+    } catch (err) {
+      notify(err.message || '租户状态更新失败')
+    }
+  }
+  const toggleAgent = async (id) => {
+    const target = localAgents.find((item) => item.id === id)
+    if (!target) return
+    const nextStatus = target.status === 'offline' ? 'active' : 'disabled'
+    try {
+      await updateAgentStatus(id, nextStatus)
+      setLocalAgents((items) => items.map((item) => item.id === id ? { ...item, status: nextStatus === 'active' ? 'online' : 'offline', statusText: nextStatus === 'active' ? '在线' : '离线' } : item))
+      notify('客服状态已更新并写入数据库')
+    } catch (err) {
+      notify(err.message || '客服状态更新失败')
+    }
+  }
   const publishDoc = (id) => { setLocalDocs((items) => items.map((item) => item.id === id ? { ...item, status: 'published', statusText: '已发布' } : item)); notify('知识文档已发布') }
   const toggleRule = (id) => { setLocalRules((items) => items.map((item) => item.id === id ? { ...item, enabled: !item.enabled } : item)); notify('路由策略状态已更新') }
   const toggleChannel = (id) => { setLocalChannels((items) => items.map((item) => item.id === id ? { ...item, status: item.status === 'connected' ? 'warning' : 'connected', statusText: item.status === 'connected' ? '待配置' : '已连接' } : item)); notify('渠道连接状态已更新') }
 
   return <div className="admin-shell">
-    <header className="admin-topbar"><button className="admin-brand" onClick={() => go('overview')}><span className="admin-brand-mark"><AIcon name="spark" size={18} /></span><span><strong>AI智能客服系统</strong><small>{isPlatform ? '平台管理中心' : '机构管理中心'}</small></span></button><div className="admin-context"><span className="admin-env-dot" />本地演示环境 <i /> {isPlatform ? '全平台视图' : '星河科技 · TENANT-018'}</div><div className="admin-top-actions">{session.role === 'platform_admin' ? <button className="admin-role-switch" onClick={() => navigate(isPlatform ? '/organization/overview' : '/platform/overview')}><span>超级管理员</span><small>{isPlatform ? '进入租户上下文' : '返回平台视图'}</small></button> : <div className="admin-role-switch static"><span>机构管理员</span><small>TENANT-018</small></div>}<button className="admin-icon-btn" aria-label="通知"><AIcon name="chat" size={17} /></button><span className="admin-user-avatar">{session.name.slice(0, 1)}</span><div className="admin-user-meta"><b>{session.name}</b><small>{session.title}</small></div></div></header>
-    <div className="admin-body"><aside className="admin-sidebar"><div className="admin-side-label">{isPlatform ? 'PLATFORM' : 'TENANT'} CONSOLE</div>{nav.map((section) => <div className="admin-nav-group" key={section.group}><span>{section.group}</span>{section.items.map((item) => <button key={item.id} className={`admin-nav-item ${module === item.id ? 'active' : ''}`} onClick={() => item.id === 'workbench' ? navigate('/workbench') : go(item.id)}><AIcon name={item.icon} size={16} /><span>{item.label}</span>{item.id === 'audit' && <b>2</b>}</button>)}</div>)}<div className="admin-sidebar-bottom"><button className="admin-nav-item" onClick={() => notify('帮助中心即将开放')}><AIcon name="settings" size={16} />帮助与设置</button><button className="admin-nav-item" onClick={() => navigate('/workbench')}><AIcon name="arrow" size={16} />返回客服工作台</button><button className="admin-nav-item logout" onClick={onLogout}><AIcon name="arrow" size={16} />退出登录</button></div></aside>
-      <main className="admin-main"><div className="admin-page-head"><div><div className="admin-breadcrumb">{isPlatform ? '平台管理' : '机构管理'} <span>/</span> {nav.flatMap((section) => section.items).find((item) => item.id === module)?.label || '总览'}</div><h1>{pageTitle(module, isPlatform)}</h1><p>{pageDescription(module, isPlatform)}</p></div><div className="admin-head-actions"><span className="admin-updated">数据更新于 14:30</span>{(module === 'overview' || module === 'organizations' || module === 'people' || module === 'knowledge') && <button className="admin-primary-btn" onClick={() => openModal(isPlatform ? '创建新机构' : module === 'knowledge' ? '导入知识文档' : '邀请客服')}><AIcon name="plus" size={15} />{isPlatform ? '创建机构' : module === 'knowledge' ? '导入知识' : '邀请客服'}</button>}<button className="admin-secondary-btn" onClick={() => notify('运营摘要已生成（演示）')}><AIcon name="download" size={14} />导出摘要</button></div></div>
-        <div className="admin-demo-notice"><AIcon name="shield" size={14} /><span>本地演示数据 · 所有修改仅在当前页面生效，不会提交真实后端</span>{isPlatform && <strong>跨租户查看已开启审计记录</strong>}</div>
+    <header className="admin-topbar"><button className="admin-brand" onClick={() => go('overview')}><span className="admin-brand-mark"><AIcon name="spark" size={18} /></span><span><strong>AI智能客服系统</strong><small>{isPlatform ? '平台管理中心' : '机构管理中心'}</small></span></button><div className="admin-context"><span className="admin-env-dot" />本地演示环境 <i /> {isPlatform ? '全平台视图' : `${session.tenantName || '星河科技'} · ${session.tenantId || 'TENANT-018'}`}</div><div className="admin-top-actions">{session.role === 'platform_admin' ? <button className="admin-role-switch" onClick={() => navigate(isPlatform ? '/organization/overview' : '/platform/overview')}><span>超级管理员</span><small>{isPlatform ? '进入租户上下文' : '返回平台视图'}</small></button> : <div className="admin-role-switch static"><span>机构管理员</span><small>{session.tenantName || session.tenantId || 'TENANT-018'}</small></div>}<button className="admin-icon-btn" aria-label="通知"><AIcon name="chat" size={17} /></button><span className="admin-user-avatar">{session.name.slice(0, 1)}</span><div className="admin-user-meta"><b>{session.name}</b><small>{session.title}</small></div></div></header>
+    <div className="admin-body"><aside className="admin-sidebar"><div className="admin-side-label">{isPlatform ? 'PLATFORM' : 'TENANT'} CONSOLE</div>{nav.map((section) => <div className="admin-nav-group" key={section.group}><span>{section.group}</span>{section.items.map((item) => <button key={item.id} className={`admin-nav-item ${module === item.id ? 'active' : ''}`} onClick={() => go(item.id)}><AIcon name={item.icon} size={16} /><span>{item.label}</span>{item.id === 'audit' && <b>2</b>}</button>)}</div>)}<div className="admin-sidebar-bottom"><button className="admin-nav-item" onClick={() => notify('帮助中心即将开放')}><AIcon name="settings" size={16} />帮助与设置</button>{isPlatform && <button className="admin-nav-item" onClick={() => navigate('/workbench')}><AIcon name="arrow" size={16} />前往客服工作台</button>}<button className="admin-nav-item logout" onClick={onLogout}><AIcon name="arrow" size={16} />退出登录</button></div></aside>
+      <main className="admin-main"><div className="admin-page-head"><div><div className="admin-breadcrumb">{isPlatform ? '平台管理' : '机构管理'} <span>/</span> {nav.flatMap((section) => section.items).find((item) => item.id === module)?.label || '总览'}</div><h1>{pageTitle(module, isPlatform)}</h1><p>{pageDescription(module, isPlatform)}</p></div><div className="admin-head-actions"><span className="admin-updated">数据更新于 14:30</span>{(module === 'overview' || module === 'organizations' || module === 'people' || module === 'knowledge') && <button className="admin-primary-btn" onClick={() => isPlatform ? setTenantModal({ mode: 'create' }) : openModal(module === 'knowledge' ? '导入知识文档' : '邀请客服')}><AIcon name="plus" size={15} />{isPlatform ? '创建机构' : module === 'knowledge' ? '导入知识' : '邀请客服'}</button>}<button className="admin-secondary-btn" onClick={() => notify('运营摘要已生成（演示）')}><AIcon name="download" size={14} />导出摘要</button></div></div>
+        <div className="admin-demo-notice"><AIcon name="shield" size={14} /><span>{isPlatform ? '租户数据已连接数据库 · 其余模块为演示数据' : '客服数据已连接数据库 · 其余模块为演示数据'}</span>{isPlatform && <strong>跨租户查看已开启审计记录</strong>}</div>
         {module !== 'overview' && <div className="admin-filter-bar"><div className="admin-search"><AIcon name="search" size={15} /><input aria-label="搜索" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={isPlatform ? '搜索机构、租户 ID 或行业' : '搜索姓名、文档或业务对象'} /></div><select aria-label="状态筛选"><option>全部状态</option><option>运行中</option><option>待审核</option><option>已停用</option></select><button className="admin-filter-clear" onClick={() => setQuery('')}>清除条件</button></div>}
-        {isPlatform ? <PlatformContent module={module} stats={platformStats} tenants={filteredTenants} models={models} logs={auditLogs} services={services} onToggleTenant={toggleTenant} onModal={openModal} onNotify={notify} /> : <OrganizationContent module={module} stats={organizationStats} agents={filteredAgents} customers={customers} docs={filteredDocs} rules={localRules} channels={localChannels} onToggleAgent={toggleAgent} onPublishDoc={publishDoc} onToggleRule={toggleRule} onToggleChannel={toggleChannel} onModal={openModal} onNotify={notify} />}
+        {isPlatform ? <PlatformContent module={module} stats={platformStats} tenants={filteredTenants} models={models} logs={auditLogs} services={services} onToggleTenant={toggleTenant} onEditTenant={(tenant) => setTenantModal({ mode: 'edit', tenant })} onModal={openModal} onNotify={notify} /> : <OrganizationContent module={module} stats={organizationStats} agents={filteredAgents} customers={customers} docs={filteredDocs} rules={localRules} channels={localChannels} onToggleAgent={toggleAgent} onPublishDoc={publishDoc} onToggleRule={toggleRule} onToggleChannel={toggleChannel} onModal={openModal} onNotify={notify} />}
       </main></div>
     {showModal && <DemoModal title={modalTitle} onClose={() => setShowModal(false)} onSubmit={() => { setShowModal(false); notify(`${modalTitle}成功（演示）`) }} />}
+    {tenantModal && <TenantFormModal title={tenantModal.mode === 'create' ? '创建新机构' : '编辑机构'} initialName={tenantModal.mode === 'edit' ? tenantModal.tenant.name : ''} onClose={() => setTenantModal(null)} onSubmit={submitTenantForm} />}
     {toast && <div className="admin-toast" role="status"><span>✓</span>{toast}</div>}
   </div>
 }
 
-function pageTitle(module, platform) { const map = platform ? { overview: '平台运营总览', organizations: '机构与租户', models: 'AI 模型中心', config: '平台全局配置', audit: '安全与审计', monitoring: '运维监控' } : { overview: '机构运营总览', people: '客服与组织', workbench: '客服工作台', customers: '客户中心', knowledge: '知识库运营', ai: 'AI 与路由策略', channels: '渠道与开放能力', operations: '服务运营' }; return map[module] || '管理中心' }
-function pageDescription(module, platform) { const map = platform ? { overview: '聚合查看租户健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与租户隔离', models: '统一管理模型供应商、版本和默认策略', config: '配置平台级限流、通知与全局参数', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', workbench: '进入实时会话接待和人工接管工作台', customers: '统一管理跨渠道客户档案、标签与隐私状态', knowledge: '管理知识导入、审核发布与检索命中质量', ai: '配置意图、置信度护栏、模型和人工兜底', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表' }; return map[module] || '配置和运营你的客户服务团队' }
+function pageTitle(module, platform) { const map = platform ? { overview: '平台运营总览', organizations: '机构与租户', models: 'AI 模型中心', config: '平台全局配置', audit: '安全与审计', monitoring: '运维监控' } : { overview: '机构运营总览', people: '客服与组织', customers: '客户中心', knowledge: '知识库运营', ai: 'AI 与路由策略', channels: '渠道与开放能力', operations: '服务运营' }; return map[module] || '管理中心' }
+function pageDescription(module, platform) { const map = platform ? { overview: '聚合查看租户健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与租户隔离', models: '统一管理模型供应商、版本和默认策略', config: '配置平台级限流、通知与全局参数', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', customers: '统一管理跨渠道客户档案、标签与隐私状态', knowledge: '管理知识导入、审核发布与检索命中质量', ai: '配置意图、置信度护栏、模型和人工兑底', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表' }; return map[module] || '配置和运营你的客户服务团队' }
 
-function PlatformContent({ module, stats, tenants: tenantRows, models: modelRows, logs, services: serviceRows, onToggleTenant, onModal, onNotify }) { if (module === 'organizations') return <><SectionHeader title="机构列表" subtitle="共 28 个租户 · 数据按租户隔离" /><DataTable headers={['机构 / 租户 ID', '套餐', '状态', '坐席使用', '今日会话', '配额使用', '最近活跃', '操作']} rows={tenantRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id} · {row.industry}</small></strong>, row.plan, <Pill tone={row.status === 'active' ? 'success' : row.status === 'review' ? 'warning' : 'muted'}>{row.statusText}</Pill>, row.agents, row.conversations, <Progress value={row.usage} />, row.lastActive, <button className="table-action" onClick={() => { onToggleTenant(row.id); onNotify('租户状态已更新并写入审计') }}>{row.status === 'paused' ? '启用' : row.status === 'review' ? '审核' : '停用'}</button>])} /></>; if (module === 'models') return <><SectionHeader title="模型供应商" subtitle="3 个模型已接入 · 1 个生产中" /><div className="admin-card-grid">{modelRows.map((model) => <div className="model-card" key={model.id}><div className="model-card-head"><div className="model-logo">{model.provider.slice(0, 1)}</div><Pill tone={model.status === 'active' ? 'success' : model.status === 'testing' ? 'purple' : 'muted'}>{model.statusText}</Pill></div><h3>{model.name}</h3><p>{model.provider} · {model.mode}</p><div className="model-stats"><span>版本<strong>{model.version}</strong></span><span>平均延迟<strong>{model.latency}</strong></span><span>Token 用量<strong>{model.usage}</strong></span></div><button className={model.isDefault ? 'table-action disabled' : 'admin-outline-btn'} onClick={() => onNotify(model.isDefault ? '已是默认模型' : `${model.name} 已设为默认模型`)}>{model.isDefault ? '当前默认模型' : '设为默认模型'}</button></div>)}</div></>; if (module === 'audit') return <><SectionHeader title="审计事件" subtitle="所有关键操作均保留 requestId 和租户上下文" /><DataTable headers={['事件 ID', '操作者', '动作', '目标资源', '时间', '风险', '操作']} rows={logs.map((row) => [<code>{row.id}</code>, <strong>{row.actor}<small>{row.role}</small></strong>, row.action, row.target, row.time, <Pill tone={row.risk === 'high' ? 'danger' : row.risk === 'medium' ? 'warning' : 'success'}>{row.riskText}</Pill>, <button className="table-action" onClick={() => onNotify(`已打开 ${row.id} 详情`)}>查看详情</button>])} /></>; if (module === 'monitoring') return <><SectionHeader title="服务健康" subtitle="消息链路无静默丢失 · 最近一次巡检 14:29" /><div className="service-grid">{serviceRows.map((service) => <div className="service-card" key={service.key}><div className="service-icon"><AIcon name={service.key === 'rag' ? 'database' : 'pulse'} size={17} /></div><div><h3>{service.name}</h3><span>{service.statusText}</span></div><strong>{service.value}</strong><small>延迟 {service.latency}</small></div>)}</div><SectionHeader title="近期告警" subtitle="需要平台管理员关注的事件" /><div className="alert-list"><Alert text="知识检索服务 P95 延迟升高，已自动切换备用节点" tone="warning" time="12 分钟前"/><Alert text="TENANT-014 配额使用达到 92%，建议联系机构管理员" tone="danger" time="36 分钟前"/></div></>; if (module === 'config') return <SettingsPanel onNotify={onNotify} />; return <PlatformOverview stats={stats} tenants={tenantRows} logs={logs} onModal={onModal} /> }
+function PlatformContent({ module, stats, tenants: tenantRows, models: modelRows, logs, services: serviceRows, onToggleTenant, onEditTenant, onModal, onNotify }) { if (module === 'organizations') return <><SectionHeader title="机构列表" subtitle={`共 ${tenantRows.length} 个租户 · 数据按租户隔离`} /><DataTable headers={['机构 / 租户 ID', '套餐', '状态', '坐席使用', '今日会话', '配额使用', '最近活跃', '操作']} rows={tenantRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id} · {row.industry}</small></strong>, row.plan, <Pill tone={row.status === 'active' ? 'success' : row.status === 'review' ? 'warning' : 'muted'}>{row.statusText}</Pill>, row.agents, row.conversations, <Progress value={row.usage} />, row.lastActive, <span className="table-actions"><button className="table-action" onClick={() => onEditTenant(row)}>编辑</button><button className="table-action" onClick={() => { onToggleTenant(row.id); onNotify('租户状态已更新并写入审计') }}>{row.status === 'paused' ? '启用' : row.status === 'review' ? '审核' : '停用'}</button></span>])} /></>; if (module === 'models') return <><SectionHeader title="模型供应商" subtitle="3 个模型已接入 · 1 个生产中" /><div className="admin-card-grid">{modelRows.map((model) => <div className="model-card" key={model.id}><div className="model-card-head"><div className="model-logo">{model.provider.slice(0, 1)}</div><Pill tone={model.status === 'active' ? 'success' : model.status === 'testing' ? 'purple' : 'muted'}>{model.statusText}</Pill></div><h3>{model.name}</h3><p>{model.provider} · {model.mode}</p><div className="model-stats"><span>版本<strong>{model.version}</strong></span><span>平均延迟<strong>{model.latency}</strong></span><span>Token 用量<strong>{model.usage}</strong></span></div><button className={model.isDefault ? 'table-action disabled' : 'admin-outline-btn'} onClick={() => onNotify(model.isDefault ? '已是默认模型' : `${model.name} 已设为默认模型`)}>{model.isDefault ? '当前默认模型' : '设为默认模型'}</button></div>)}</div></>; if (module === 'audit') return <><SectionHeader title="审计事件" subtitle="所有关键操作均保留 requestId 和租户上下文" /><DataTable headers={['事件 ID', '操作者', '动作', '目标资源', '时间', '风险', '操作']} rows={logs.map((row) => [<code>{row.id}</code>, <strong>{row.actor}<small>{row.role}</small></strong>, row.action, row.target, row.time, <Pill tone={row.risk === 'high' ? 'danger' : row.risk === 'medium' ? 'warning' : 'success'}>{row.riskText}</Pill>, <button className="table-action" onClick={() => onNotify(`已打开 ${row.id} 详情`)}>查看详情</button>])} /></>; if (module === 'monitoring') return <><SectionHeader title="服务健康" subtitle="消息链路无静默丢失 · 最近一次巡检 14:29" /><div className="service-grid">{serviceRows.map((service) => <div className="service-card" key={service.key}><div className="service-icon"><AIcon name={service.key === 'rag' ? 'database' : 'pulse'} size={17} /></div><div><h3>{service.name}</h3><span>{service.statusText}</span></div><strong>{service.value}</strong><small>延迟 {service.latency}</small></div>)}</div><SectionHeader title="近期告警" subtitle="需要平台管理员关注的事件" /><div className="alert-list"><Alert text="知识检索服务 P95 延迟升高，已自动切换备用节点" tone="warning" time="12 分钟前"/><Alert text="TENANT-014 配额使用达到 92%，建议联系机构管理员" tone="danger" time="36 分钟前"/></div></>; if (module === 'config') return <SettingsPanel onNotify={onNotify} />; return <PlatformOverview stats={stats} tenants={tenantRows} logs={logs} onModal={onModal} /> }
 
-function OrganizationContent({ module, stats, agents: agentRows, customers: customerRows, docs, rules, channels: channelRows, onToggleAgent, onPublishDoc, onToggleRule, onToggleChannel, onModal, onNotify }) { if (module === 'people') return <><SectionHeader title="客服账号" subtitle="48 名客服 · 36 人在线 · 当前排班覆盖率 92%" /><DataTable headers={['客服', '角色', '状态', '技能组', '今日会话', '平均首响', '满意度', '操作']} rows={agentRows.map((row) => [<strong className="table-name"><span className={`mini-avatar ${row.status}`}>{row.initials}</span>{row.name}<small>{row.id}</small></strong>, row.role, <Pill tone={row.status === 'online' ? 'success' : row.status === 'busy' ? 'warning' : 'muted'}>{row.statusText}</Pill>, <div className="tag-inline">{row.groups.map((group) => <span key={group}>{group}</span>)}</div>, row.sessions, row.response, row.satisfaction, <button className="table-action" onClick={() => onToggleAgent(row.id)}>{row.status === 'offline' ? '启用' : '停用'}</button>])} /></>; if (module === 'customers') return <><SectionHeader title="客户档案" subtitle="跨渠道统一身份 · 敏感字段已脱敏" /><DataTable headers={['客户', '客户等级', '来源', '手机号', '标签', '历史会话', '最近咨询', '隐私状态']} rows={customerRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, <Pill tone={row.level.includes('VIP') || row.level.includes('高价值') ? 'purple' : 'muted'}>{row.level}</Pill>, row.source, row.phone, <div className="tag-inline">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>, row.sessions, row.last, <Pill tone={row.privacy === '已授权' ? 'success' : 'warning'}>{row.privacy}</Pill>])} /></>; if (module === 'knowledge') return <><SectionHeader title="知识文档" subtitle="4 个知识来源 · 1 个待审核 · 命中率 91.4%" /><DataTable headers={['文档名称', '类型', '状态', '分片数', '命中率', '最近更新', '操作']} rows={docs.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, row.type, <Pill tone={row.status === 'published' ? 'success' : row.status === 'review' ? 'warning' : 'purple'}>{row.statusText}</Pill>, row.chunks, row.hitRate, row.updated, <button className="table-action" onClick={() => row.status === 'published' ? onNotify('已打开文档详情') : onPublishDoc(row.id)}>{row.status === 'published' ? '查看' : '发布'}</button>])} /></>; if (module === 'ai') return <><SectionHeader title="AI 策略与护栏" subtitle="当前模型：DeepSeek V3 · 低置信度自动转人工" /><div className="policy-banner"><div className="policy-icon"><AIcon name="shield" /></div><div><strong>策略服务运行正常</strong><span>引用要求、禁答主题与人工确认规则均已启用</span></div><button className="table-action" onClick={() => onNotify('策略测试完成：3/3 场景符合预期')}>测试策略</button></div><DataTable headers={['规则名称', '目标技能组', '置信度阈值', '兜底动作', '命中次数', '状态', '操作']} rows={rules.map((row) => [<strong className="table-name">{row.name}<small>意图编码 · {row.intent}</small></strong>, row.group, `${row.threshold}%`, row.fallback, row.hits, <Pill tone={row.enabled ? 'success' : 'muted'}>{row.enabled ? '已启用' : '已停用'}</Pill>, <button className="table-action" onClick={() => onToggleRule(row.id)}>{row.enabled ? '停用' : '启用'}</button>])} /></>; if (module === 'channels') return <><SectionHeader title="渠道连接" subtitle="3 个渠道正常 · 1 个待配置" /><div className="channel-admin-grid">{channelRows.map((channel) => <div className="channel-admin-card" key={channel.id}><div className="channel-admin-head"><div className="channel-symbol"><AIcon name={channel.name === 'Open API' ? 'database' : 'channel'} size={18} /></div><Pill tone={channel.status === 'connected' ? 'success' : 'warning'}>{channel.statusText}</Pill></div><h3>{channel.name}</h3><p>{channel.description}</p><div><span>今日会话</span><strong>{channel.conversations}</strong><small>{channel.updated}</small></div><button className="admin-outline-btn" onClick={() => onToggleChannel(channel.id)}>{channel.status === 'connected' ? '断开连接' : '重新连接'}</button></div>)}</div></>; if (module === 'operations') return <Operations onNotify={onNotify} />; if (module === 'workbench') return <div className="admin-empty"><AIcon name="chat" size={28}/><h3>实时客服工作台</h3><p>从左侧导航进入实时会话接待、AI 接管和工单协同。</p></div>; return <OrganizationOverview stats={stats} agentRows={agentRows} onModal={onModal} /> }
+function OrganizationContent({ module, stats, agents: agentRows, customers: customerRows, docs, rules, channels: channelRows, onToggleAgent, onPublishDoc, onToggleRule, onToggleChannel, onModal, onNotify }) { if (module === 'people') return <><SectionHeader title="客服账号" subtitle={`${agentRows.length} 名客服 · ${agentRows.filter((row) => row.status === 'online').length} 人启用 · 数据来自数据库`} /><DataTable headers={['客服', '角色', '状态', '技能组', '今日会话', '平均首响', '满意度', '操作']} rows={agentRows.map((row) => [<strong className="table-name"><span className={`mini-avatar ${row.status}`}>{row.initials}</span>{row.name}<small>{row.id}</small></strong>, row.role, <Pill tone={row.status === 'online' ? 'success' : row.status === 'busy' ? 'warning' : 'muted'}>{row.statusText}</Pill>, <div className="tag-inline">{row.groups.map((group) => <span key={group}>{group}</span>)}</div>, row.sessions, row.response, row.satisfaction, <button className="table-action" onClick={() => onToggleAgent(row.id)}>{row.status === 'offline' ? '启用' : '停用'}</button>])} /></>; if (module === 'customers') return <><SectionHeader title="客户档案" subtitle="跨渠道统一身份 · 敏感字段已脱敏" /><DataTable headers={['客户', '客户等级', '来源', '手机号', '标签', '历史会话', '最近咨询', '隐私状态']} rows={customerRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, <Pill tone={row.level.includes('VIP') || row.level.includes('高价值') ? 'purple' : 'muted'}>{row.level}</Pill>, row.source, row.phone, <div className="tag-inline">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>, row.sessions, row.last, <Pill tone={row.privacy === '已授权' ? 'success' : 'warning'}>{row.privacy}</Pill>])} /></>; if (module === 'knowledge') return <><SectionHeader title="知识文档" subtitle="4 个知识来源 · 1 个待审核 · 命中率 91.4%" /><DataTable headers={['文档名称', '类型', '状态', '分片数', '命中率', '最近更新', '操作']} rows={docs.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, row.type, <Pill tone={row.status === 'published' ? 'success' : row.status === 'review' ? 'warning' : 'purple'}>{row.statusText}</Pill>, row.chunks, row.hitRate, row.updated, <button className="table-action" onClick={() => row.status === 'published' ? onNotify('已打开文档详情') : onPublishDoc(row.id)}>{row.status === 'published' ? '查看' : '发布'}</button>])} /></>; if (module === 'ai') return <><SectionHeader title="AI 策略与护栏" subtitle="当前模型：DeepSeek V3 · 低置信度自动转人工" /><div className="policy-banner"><div className="policy-icon"><AIcon name="shield" /></div><div><strong>策略服务运行正常</strong><span>引用要求、禁答主题与人工确认规则均已启用</span></div><button className="table-action" onClick={() => onNotify('策略测试完成：3/3 场景符合预期')}>测试策略</button></div><DataTable headers={['规则名称', '目标技能组', '置信度阈值', '兜底动作', '命中次数', '状态', '操作']} rows={rules.map((row) => [<strong className="table-name">{row.name}<small>意图编码 · {row.intent}</small></strong>, row.group, `${row.threshold}%`, row.fallback, row.hits, <Pill tone={row.enabled ? 'success' : 'muted'}>{row.enabled ? '已启用' : '已停用'}</Pill>, <button className="table-action" onClick={() => onToggleRule(row.id)}>{row.enabled ? '停用' : '启用'}</button>])} /></>; if (module === 'channels') return <><SectionHeader title="渠道连接" subtitle="3 个渠道正常 · 1 个待配置" /><div className="channel-admin-grid">{channelRows.map((channel) => <div className="channel-admin-card" key={channel.id}><div className="channel-admin-head"><div className="channel-symbol"><AIcon name={channel.name === 'Open API' ? 'database' : 'channel'} size={18} /></div><Pill tone={channel.status === 'connected' ? 'success' : 'warning'}>{channel.statusText}</Pill></div><h3>{channel.name}</h3><p>{channel.description}</p><div><span>今日会话</span><strong>{channel.conversations}</strong><small>{channel.updated}</small></div><button className="admin-outline-btn" onClick={() => onToggleChannel(channel.id)}>{channel.status === 'connected' ? '断开连接' : '重新连接'}</button></div>)}</div></>; if (module === 'operations') return <Operations onNotify={onNotify} />; return <OrganizationOverview stats={stats} agentRows={agentRows} onModal={onModal} /> }
 
 function PlatformOverview({ stats, tenants: rows, logs, onModal }) { return <><MetricGrid stats={stats} /><div className="admin-content-grid two-thirds"><ChartCard title="近 7 日平台服务量" subtitle="会话量与 AI 解决率趋势"><TrendChart values={[58, 66, 61, 75, 72, 84, 92]} color="#3558d4" /></ChartCard><SectionCard title="租户健康排行" action="查看全部"><div className="rank-list">{rows.slice(0, 4).map((row, index) => <div className="rank-row" key={row.id}><b>{index + 1}</b><span>{row.name}<small>{row.plan}</small></span><Progress value={row.usage} /><strong>{row.usage}%</strong></div>)}</div></SectionCard></div><div className="admin-content-grid two-thirds"><SectionCard title="待处理事项" action="查看风险"><Alert text="远航物流待完成入驻审核" tone="warning" time="需要处理"/><Alert text="北辰医疗租户已停用，配额待释放" tone="danger" time="需要处理"/><Alert text="RAG 服务延迟恢复正常" tone="success" time="12 分钟前"/></SectionCard><SectionCard title="最近审计事件" action="查看全部">{logs.slice(0, 3).map((log) => <div className="timeline-row" key={log.id}><span className="timeline-dot"/><div><strong>{log.action}</strong><small>{log.actor} · {log.time}</small></div></div>)}</SectionCard></div></> }
 function OrganizationOverview({ stats, agentRows, onModal }) { return <><MetricGrid stats={stats} /><div className="admin-content-grid two-thirds"><SectionCard title="实时服务概览" subtitle="当前机构 · 华东服务中心"><div className="live-metrics"><div><span>排队会话</span><strong className="danger-text">12</strong><small>3 个即将超时</small></div><div><span>在线客服</span><strong>36 / 48</strong><small>平均负载 72%</small></div><div><span>知识命中率</span><strong>91.4%</strong><small className="success-text">较昨日 +2.8%</small></div></div><div className="channel-strip"><span>Web Widget <b>正常</b></span><span>微信公众号 <b>正常</b></span><span>企业微信 <b>正常</b></span><span>Open API <b className="warning-text">待配置</b></span></div></SectionCard><ChartCard title="近 7 日会话趋势" subtitle="AI 接待与人工接管"><TrendChart values={[44, 52, 48, 64, 58, 76, 82]} color="#6d4bd7" /></ChartCard></div><div className="admin-content-grid two-thirds"><SectionCard title="客服负载排行" action="查看绩效"><div className="rank-list">{agentRows.slice(0, 4).map((row) => <div className="rank-row agent-rank" key={row.id}><span className={`mini-avatar ${row.status}`}>{row.initials}</span><span>{row.name}<small>{row.groups[0]}</small></span><Progress value={Math.min(100, row.sessions * 2.5)} /><strong>{row.sessions} 会话</strong></div>)}</div></SectionCard><SectionCard title="运营待办" action="查看全部"><Alert text="3 篇知识文档等待审核" tone="warning" time="知识库"/><Alert text="2 个会话即将触发 SLA 升级" tone="danger" time="客服工作台"/><Alert text="本周质检抽检完成率 86%" tone="success" time="质量管理"/></SectionCard></div></> }
@@ -107,3 +186,23 @@ function DataTable({ headers, rows }) { return <div className="table-wrap"><tabl
 function Pill({ tone = 'muted', children }) { return <span className={`admin-pill ${tone}`}>{children}</span> }
 function Alert({ text, tone, time }) { return <div className="alert-row"><span className={`alert-icon ${tone}`}>{tone === 'danger' ? '!' : tone === 'warning' ? '!' : '✓'}</span><span>{text}<small>{time}</small></span><AIcon name="arrow" size={13}/></div> }
 function DemoModal({ title, onClose, onSubmit }) { return <div className="admin-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title"><div className="admin-modal-head"><h2 id="admin-modal-title">{title}</h2><button className="admin-icon-btn" onClick={onClose} aria-label="关闭"><AIcon name="close" /></button></div><p>这是本地演示操作。提交后只会更新当前页面数据，不会调用真实服务。</p><label>名称 / 标题<input autoFocus placeholder="请输入名称" /></label><label>说明 / 备注<textarea placeholder="补充描述信息..." /></label><div className="admin-modal-actions"><button className="admin-secondary-btn" onClick={onClose}>取消</button><button className="admin-primary-btn" onClick={onSubmit}>确认提交</button></div></section></div> }
+
+function TenantFormModal({ title, initialName, onClose, onSubmit }) {
+  const [name, setName] = useState(initialName)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!name.trim()) { setError('请输入机构名称'); return }
+    setLoading(true)
+    setError('')
+    try {
+      await onSubmit(name.trim())
+    } catch (err) {
+      setError(err.message || '操作失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return <div className="admin-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-modal-title"><div className="admin-modal-head"><h2 id="tenant-modal-title">{title}</h2><button className="admin-icon-btn" onClick={onClose} aria-label="关闭"><AIcon name="close" /></button></div><p>提交后机构信息将直接写入数据库 tenant 表。</p><form onSubmit={submit}><label>机构名称<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="请输入机构名称" /></label>{error && <small className="auth-field-error" role="alert">{error}</small>}<div className="admin-modal-actions"><button type="button" className="admin-secondary-btn" onClick={onClose}>取消</button><button type="submit" className="admin-primary-btn" disabled={loading}>{loading ? '提交中...' : '确认提交'}</button></div></form></section></div>
+}

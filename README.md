@@ -1,43 +1,55 @@
 # AI 智能客服系统
 
-一个面向多租户场景的 **AI 智能客服系统** 前端演示原型，覆盖「登录认证 + 客服接待工作台 + 平台管理中心 + 机构管理中心」多端视图。项目采用 React 19 + Vite 7 构建，全部数据为本地 Mock 演示数据，开箱即用。
+一个面向多租户场景的 **AI 智能客服系统**，包含 **双前端入口**（客服/客户服务端 + 平台/机构管理端）与可选的 **NestJS 后端**（MVP 阶段，已预留 `/api` 代理与 API 封装）。前端采用 React 19 + Vite 7 构建，后端未启动时自动降级为本地演示数据，开箱即用。
 
 ## 功能特性
 
-### 0. 登录认证与权限控制（/login /register /forgot-password）
-- **三合一认证页**：登录、邀请码注册激活、找回密码三种模式，统一品牌展示与安全提示
-- **演示账号快速登录**：一键切换超级管理员 / 机构管理员 / 客服专员三种身份
-- **RBAC 权限路由**：`ProtectedRoute` 守卫，按角色（`platform_admin` / `tenant_admin` / `agent`）控制页面访问，越权自动跳转角色首页
-- **会话级登录态**：登录状态保存在 `sessionStorage`，页面刷新不丢失，退出登录一键清除
-- **表单校验**：注册校验邀请码、邮箱格式、密码强度（大小写 + 数字 + ≥8 位）；找回密码校验邮箱
-- **单元测试**：认证逻辑全部覆盖 Node 内置测试框架（`npm test`），5 个用例全绿
+### 0. 双前端入口与四角色认证（/service/*、/admin/*）
+
+系统按业务场景拆分为两个独立认证门户，共支持 **四种角色**：
+
+| 门户 | 角色 | 演示账号 | 首页 |
+| --- | --- | --- | --- |
+| 服务中心 `/service/*` | 客服坐席 `agent` | `lina@xinghe.demo` | `/workbench` |
+| 服务中心 `/service/*` | 客户 `customer` | `customer@xinghe.demo` | `/customer/chat` |
+| 管理中心 `/admin/*` | 超级管理员 `platform_admin` | `admin@ai-service.demo` | `/platform/overview` |
+| 管理中心 `/admin/*` | 机构管理员 `tenant_admin` | `admin@xinghe.demo` | `/organization/overview` |
+
+> 所有演示账号密码均为 `Demo@2026`。
+
+- **门户隔离**：客服/客户走 `service` 门户，平台/机构管理员走 `admin` 门户，两套品牌文案与注册入口相互独立，登录页可互相跳转
+- **RBAC 权限路由**：`ProtectedRoute` 守卫 + `canAccessPath` 路径级鉴权；`/platform` 仅超管、`/organization` 限管理员、`/customer/*` 限客户、`/workbench/knowledge` 与 `/workbench/settings` 限管理员
+- **后端优先 + 演示降级**：优先调用后端登录接口（`/api/v1/auth/login`），后端不可用时自动降级为本地演示账号（`loginWithDemoFallback`）
+- **四类注册**：客服坐席、客户、机构管理员、超级管理员各有独立注册接口与表单校验（密码强度、邮箱格式、机构 ID 等）
+- **登录态管理**：会话与 Token 保存在 `sessionStorage`，刷新不丢失，按门户路由退出
 
 ### 1. 客服工作台（/workbench）
-- **实时会话列表**：支持按状态（待接管 / 处理中 / AI 接待 / 已结束）、渠道（微信 / 网页 / 企业微信 / H5 / API）、SLA 风险（即将超时 / 已超时 / 正常）多维度筛选与关键词搜索
-- **AI 辅助接待**：展示 AI 应答置信度、知识库引用来源，低置信度会话自动请求人工协助
-- **人工接管**：一键接管 AI 会话，接管后获得发送权限
-- **AI 建议回复**：基于当前会话与知识库生成回复建议，可一键采纳到草稿
-- **快捷回复 / 附件 / 语音**：常用话术快捷发送，演示附件与语音能力
-- **SLA 监控**：每个会话展示 SLA 剩余时间与风险状态（正常 / 即将超时 / 已超时）
-- **客户上下文侧栏**：客户档案（等级、来源、脱敏手机号、满意度、标签）、AI 接管摘要、转人工原因、知识引用
-- **会话转接 / 结束 / 工单创建**：转接至技能组或指定客服，结束会话等待客户评价，一键创建关联工单
+- **会话接待**：实时会话列表（状态 / 渠道 / SLA 风险多维筛选 + 关键词搜索）、AI 置信度与知识引用展示、人工接管、AI 建议回复、快捷回复、SLA 监控、转接 / 结束 / 建工单
+- **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒
+- **知识库（/workbench/knowledge）**：FAQ 与知识文档管理、命中率统计、未命中问题沉淀
+- **AI 与界面配置（/workbench/settings）**：非工作时间 AI 接管时段、欢迎语、品牌主题色、窗口形态配置，实时预览并可发布到客户入口
 
-### 2. 平台管理中心（/platform）
-- **平台运营总览**：机构总数、在线租户、今日会话、全局 AI 解决率等核心指标；近 7 日服务量趋势；租户健康排行；待处理事项与最近审计事件
-- **机构与租户**：租户生命周期管理（审核 / 启用 / 停用），展示套餐、坐席使用、配额使用率
-- **AI 模型中心**：模型供应商管理（DeepSeek V3、通义千问 Max、私有化模型），支持设置默认模型
-- **全局配置**：会话保留时长、AI 安全模式、默认首响 SLA 等平台级参数
-- **安全与审计**：关键操作审计日志（含 requestId、操作者、风险等级）
-- **运维监控**：消息 API、Socket 实时通道、知识检索、Webhook 等核心服务健康度
+### 2. 客户服务入口（/customer/chat）
+- **独立聊天窗口**：客户登录后发起咨询，支持常见问题快捷提问
+- **AI / 人工模式切换**：工作时段人工优先，非工作时间由 AI 基于企业知识库接待（`resolveServiceMode` 按时间自动判定）
+- **会话流转**：欢迎 → 排队 → 接待中 → 已结束 → 评价（`transitionChat` 状态机），结束可提交星级评价
 
-### 3. 机构管理中心（/organization）
-- **机构运营总览**：今日会话、AI 自助解决率、SLA 达成率、客户满意度；实时服务概览、渠道状态、客服负载排行
-- **客服与组织**：客服账号管理（在线状态、技能组、会话量、首响时间、满意度）
-- **客户中心**：跨渠道统一客户档案，敏感字段脱敏展示，隐私授权状态
-- **知识库运营**：知识文档导入、审核发布、分片数与命中率统计
-- **AI 与路由策略**：意图识别路由规则（退款售后 / 技术故障 / 投诉升级），置信度阈值与人工兜底配置
-- **渠道与开放能力**：Web Widget、微信公众号、企业微信、Open API 渠道接入状态管理
-- **服务运营**：首响 SLA、AI 转人工率、质检通过率等服务健康指标
+### 3. 平台管理中心（/platform）
+- **平台运营总览**：机构总数、在线租户、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态
+- **机构与租户**：租户生命周期管理（审核 / 启用 / 停用）、套餐与配额可视化（已封装 `api.js` 租户接口，可对接后端 F-002）
+- **AI 模型中心**：DeepSeek V3、通义千问 Max、私有化模型统一管理，支持设置默认模型
+- **全局配置 / 安全与审计 / 运维监控**：平台级参数、审计日志、核心服务健康度
+
+### 4. 机构管理中心（/organization）
+- **机构运营总览**：今日会话、AI 解决率、SLA 达成率、满意度；实时服务概览与客服负载
+- **客服与组织**：客服账号管理（已封装 `api.js` 坐席接口，可对接后端 F-006）
+- **客户中心 / 知识库 / AI 路由策略 / 渠道接入 / 服务运营**：档案、知识文档、意图路由、渠道状态、服务健康指标
+
+### 5. 设计文档与原型产出
+- `docs/原型设计/`：7 个可独立打开的 HTML 原型页（登录页、PC 客服工作台、客户 Web 入口、平台管理后台、租户运营后台等）
+- `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造）
+- `output/`：第一期文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，均为 md / html / docx 三态）
+- `AI智能客服系统 第一期产品思维导图.pdf`
 
 ## 技术栈
 
@@ -48,6 +60,7 @@
 | 构建工具 | Vite | ^7.1.7 |
 | 编译插件 | @vitejs/plugin-react-swc | ^4.1.0 |
 | 测试框架 | Node 内置 node:test | Node 22+ |
+| 后端（可选） | NestJS（MVP，位于 `.worktrees/backend-mvp`） | — |
 | 开发语言 | JavaScript (JSX) | ES Module |
 
 ## 目录结构
@@ -56,63 +69,81 @@
 ai-customer-service-system/
 ├── index.html                  # HTML 入口（SPA 挂载点）
 ├── package.json                # 项目依赖与脚本（含 test）
-├── vite.config.js              # Vite 构建配置
+├── vite.config.js              # Vite 构建配置（含 /api 后端代理）
+├── start.bat                   # 一键启动脚本（MySQL + 后端 + 前端）
 ├── .gitignore                  # Git 忽略规则
-├── docs/                       # 设计文档（superpowers/specs 与 plans）
+├── docs/                       # 设计文档与 HTML 原型
+│   ├── 原型设计/               # 7 个可独立打开的原型页面
+│   └── superpowers/            # 设计规格（specs）与实施计划（plans）
+├── output/                     # 第一期文档交付物（md / html / docx）
 └── src/
     ├── main.jsx                # 应用入口：挂载 React、注册路由、引入全局样式
     ├── App.jsx                 # 路由编排 + 受保护路由 + 客服工作台（三栏布局）
-    ├── AuthPage.jsx            # 认证页（登录 / 注册激活 / 找回密码）
-    ├── auth.js                 # 认证逻辑（演示账号、RBAC 权限判断、表单校验）
-    ├── auth.test.js            # 认证逻辑单元测试（node:test）
-    ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式，按路由模块渲染）
+    ├── AuthPage.jsx            # 认证页（双门户：登录 / 注册 / 找回密码）
+    ├── authPortal.js           # 双门户文案与角色分类配置
+    ├── auth.js                 # 认证逻辑（后端 API 调用、演示降级、RBAC、表单校验）
+    ├── api.js                  # 业务 API 封装（坐席 F-006、租户 F-002，Bearer Token）
+    ├── AgentWorkspaceShell.jsx # 客服工作区外壳（角色感知导航栏）
+    ├── ServiceWorkspace.jsx    # 客服看板 / 知识库 / 配置 + 客户聊天窗口
+    ├── prototype.js            # 原型逻辑（工作区映射、聊天状态机、服务模式、配置持久化）
+    ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式）
     ├── adminData.js            # Mock 数据（租户、模型、审计、客服、客户、知识库、渠道、路由规则）
-    ├── styles.css              # 客服工作台样式
-    ├── admin.css               # 管理控制台样式
-    ├── auth.css                # 认证页面样式
-    └── polish.css              # 全局细节打磨样式
+    ├── auth.test.js            # 认证逻辑单元测试
+    ├── authPortal.test.js      # 双门户配置单元测试
+    ├── prototype.test.js       # 原型逻辑单元测试
+    └── *.css                   # 各模块样式（styles / admin / auth / polish / prototype）
 ```
 
 ## 模块代码说明
 
 ### src/main.jsx — 应用入口
-使用 `ReactDOM.createRoot` 挂载应用，外层包裹 `BrowserRouter` 提供路由能力，引入全局样式 `styles.css`、`admin.css`、`polish.css` 与认证页样式 `auth.css`。
-
-### src/auth.js — 认证与权限逻辑
-纯函数模块，便于单元测试：
-- `demoAccounts`：3 个演示账号（超级管理员 / 机构管理员 / 客服专员），含角色、租户、权限列表
-- `authenticateDemo(email, password)`：演示登录校验，成功返回去除描述字段的会话对象
-- `resolveHome(role)`：按角色返回首页路由
-- `canAccessPath(role, pathname)`：RBAC 路径级访问控制
-- `validateInvitation(values)` / `validateRecoveryEmail(email)`：注册与找回密码表单校验
-
-### src/AuthPage.jsx — 认证页面
-左右分栏布局：左侧品牌故事区（平台理念 + 运行概览），右侧认证卡片（`LoginForm` / `RegisterForm` / `RecoveryForm`）。支持演示账号快速登录、密码可见性切换、邀请码激活流程。
+挂载 React 应用，包裹 `BrowserRouter`，引入全部全局样式（含认证页与原型样式）。
 
 ### src/App.jsx — 路由编排 + 客服工作台
-- **路由编排**：`/`、`/login`、`/register`、`/forgot-password` 公开访问；`/workbench`、`/platform/*`、`/organization/*` 由 `ProtectedRoute` 守卫（未登录跳转登录页，越权跳转角色首页）；登录态存 `sessionStorage`，支持退出登录
-- **客服工作台三栏布局**：
-  - **左侧会话栏**：搜索、筛选、会话列表（`ConversationItem` 渲染）
-  - **中间消息区**：会话头部（SLA 时钟、转接 / 结束按钮）、AI 接管横幅（`HandoffBanner`）、消息流（`MessageItem`，区分客户 / AI / 客服 / 系统）、AI 建议回复卡片（`AiSuggestionCard`）、输入框（Enter 发送、快捷回复）
-  - **右侧上下文栏**：客户信息卡（`CustomerCard`）、AI 接管摘要、转人工原因、知识引用、备注与工单（`PanelSection` 折叠面板）
-- 内置 6 条演示会话数据（`conversationsSeed`），支持接管、发送、结束、转接、建工单等完整交互
-- 顶栏展示当前登录客服姓名与角色，提供退出登录
+- **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由；`/customer/chat` 客户聊天；`/workbench*` 客服工作区；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
+- **工作区路由分流**：`WorkbenchRoute` 通过 `getWorkArea()` 判断 `/workbench` 下的子区域（会话 / 看板 / 知识库 / 配置），非会话区域渲染 `ServiceWorkspace`
+- **客服工作台三栏布局**：会话列表（筛选 + 搜索）、消息工作区（SLA 时钟、AI 接管横幅、消息流、AI 建议、快捷回复）、客户上下文侧栏（客户档案、接管摘要、知识引用、备注工单）
+
+### src/auth.js — 认证与权限核心
+- **后端 API 层**：`apiRequest` 统一封装（错误码映射、服务不可用识别）、`apiLogin`、`registerAgent` / `registerPlatformAdmin` / `registerTenant` / `registerCustomer`、`fetchTenantOptions`
+- **演示降级**：`loginWithDemoFallback` 在后端不可用时用 `demoAccounts`（4 角色）完成登录
+- **RBAC**：`resolveHome` / `resolveLoginPath` / `resolveLogoutPath` / `canAccessPath` / `roleMatchesPortal`
+- **校验**：`validatePassword`、四类注册表单校验、`validateInvitation`、`validateRecoveryEmail`
+
+### src/AuthPage.jsx — 双门户认证页
+根据 `portal` 属性读取 `authPortal.js` 的文案与角色分类，渲染服务端（客服/客户）或管理端（平台/机构管理员）的登录 / 注册 / 找回密码表单；注册按角色分流到对应表单。
+
+### src/api.js — 业务 API 封装
+`authRequest` 自动附带 Bearer Token；`fetchAgents` / `updateAgentStatus`（坐席 F-006）、`fetchTenants` / `updateTenantStatus` / `createTenant` / `updateTenant`（租户 F-002），支持分页与搜索参数。
+
+### src/prototype.js — 原型与状态逻辑
+- `getWorkArea` / `getAgentWorkspaceNav`：工作区路由映射与角色感知导航
+- `transitionChat`：客户聊天状态机（欢迎 → 排队 → 接待 → 结束 → 评价）
+- `resolveServiceMode`：按工作时段判定 AI / 人工服务模式
+- `loadPrototypeConfig` / `savePrototypeConfig`：客户入口配置（欢迎语、主题色、AI 时段）持久化
+
+### src/ServiceWorkspace.jsx — 客服工作区 + 客户聊天
+- `TeamDashboard`：团队负载、排班、交接提醒
+- `KnowledgeBase`：FAQ / 文档 / 未命中问题
+- `ServiceSettings`：AI 接管时段与客户入口界面配置，实时预览与发布
+- `CustomerChat`：客户聊天窗口（状态机流转、AI/人工模式、星级评价）
+
+### src/AgentWorkspaceShell.jsx — 工作区外壳
+角色感知的左侧导航（会话 / 看板 / 知识库 / 配置），顶栏展示登录人与退出登录。
 
 ### src/AdminConsole.jsx — 管理控制台
-通过 `mode` 属性区分 **平台管理**（`platformNav`）与 **机构管理**（`orgNav`）两套导航与内容渲染，接收 `session` 与 `onLogout` 展示真实登录身份：
-- `PlatformContent`：租户管理表格、模型卡片、审计日志、服务监控
-- `OrganizationContent`：客服账号、客户档案、知识库、路由策略、渠道接入表格
-- `PlatformOverview` / `OrganizationOverview`：两端运营总览（指标卡 `MetricGrid`、趋势图 `TrendChart`、待办事项、排行榜）
-- `Operations` / `SettingsPanel`：服务运营指标、全局配置表单
-- 通用组件：`DataTable` 数据表格、`Pill` 状态标签、`Progress` 进度条、`DemoModal` 演示弹窗
-- 顶栏按 `session.role` 动态渲染：超级管理员可切换租户上下文，机构管理员固定租户视图；侧栏提供「退出登录」
+`mode` 区分平台 / 机构两套导航；`PlatformContent`（租户、模型、审计、监控）、`OrganizationContent`（客服、客户、知识库、路由、渠道）；运营总览指标卡、趋势图、待办；通用表格 / 标签 / 弹窗组件。
 
 ### src/adminData.js — Mock 数据层
-集中管理全部演示数据：`platformStats`（平台指标）、`organizationStats`（机构指标）、`tenants`（租户）、`models`（模型）、`auditLogs`（审计）、`services`（服务监控）、`agents`（客服）、`customers`（客户）、`knowledgeDocs`（知识库）、`channels`（渠道）、`routingRules`（路由规则）。
+集中管理演示数据：平台指标、机构指标、租户、模型、审计、服务监控、客服、客户、知识库、渠道、路由规则。
 
-### docs/ — 设计文档
-- `docs/superpowers/specs/`：后端 MVP 设计规格（技术方案、模块边界、数据模型）
-- `docs/superpowers/plans/`：后端 MVP 实施计划（任务拆解与里程碑）
+### 测试（src/*.test.js）
+`auth.test.js`（认证 / RBAC / 校验）、`authPortal.test.js`（门户配置）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化），共 **29 个用例**，`npm test` 全绿。
+
+### docs/ 与 output/ — 文档与原型
+- `docs/原型设计/*.html`：7 个可独立打开的高保真原型页
+- `docs/superpowers/`：后端 MVP 与双前端认证的设计规格（specs）和实施计划（plans）
+- `output/`：第一期五份设计文档（产品思维导图、详细设计、原型设计、简化版、技术选型）的 md / html / docx 交付态
 
 ## 快速开始
 
@@ -123,7 +154,7 @@ npm install
 # 启动开发服务器（默认 http://localhost:5173）
 npm run dev
 
-# 运行单元测试（认证逻辑，共 5 个用例）
+# 运行单元测试（29 个用例）
 npm test
 
 # 生产构建
@@ -133,26 +164,32 @@ npm run build
 npm run preview
 ```
 
-### 演示账号
+### 一键启动（Windows，含后端）
 
-| 身份 | 邮箱 | 密码 |
-| --- | --- | --- |
-| 超级管理员 | `admin@ai-service.demo` | `Demo@2026` |
-| 机构管理员 | `admin@xinghe.demo` | `Demo@2026` |
-| 客服专员 | `lina@xinghe.demo` | `Demo@2026` |
+双击 `start.bat` 或命令行执行：
 
-> 登录页也提供「演示身份快速登录」一键选择。
+```bat
+start.bat
+```
+
+脚本依次执行：检查/启动 MySQL8 → 启动后端 NestJS（`:4000`，位于 `.worktrees/backend-mvp/backend`）→ 启动前端 Vite（`:5173`）。
+
+- 前端地址：http://localhost:5173
+- 后端地址：http://localhost:4000/api/v1
+- API 文档：http://localhost:4000/api/docs
+
+> 未启动后端时，前端会自动使用本地演示账号与 Mock 数据，功能不受影响。
 
 ### 访问入口
 
 | 页面 | 路由 | 可访问角色 |
 | --- | --- | --- |
-| 登录 / 注册 / 找回密码 | `/login` `/register` `/forgot-password` | 公开 |
-| 客服工作台 | `/workbench` | 全部角色 |
-| 平台管理中心 | `/platform`（默认跳转 `/platform/overview`） | 超级管理员 |
-| 机构管理中心 | `/organization`（默认跳转 `/organization/overview`） | 超级管理员 / 机构管理员 |
-
-> 超级管理员可在管理控制台右上角切换租户上下文，机构管理员固定在其机构视图；越权访问会自动跳转回角色首页。
+| 服务中心（客服/客户登录） | `/service/login` `/service/register` | 公开 |
+| 管理中心（管理员登录） | `/admin/login` `/admin/register` | 公开 |
+| 客户聊天窗口 | `/customer/chat` | 客户 |
+| 客服工作台 | `/workbench`（含 `/workbench/dashboard` 等） | 客服坐席 / 管理员 |
+| 平台管理中心 | `/platform` | 超级管理员 |
+| 机构管理中心 | `/organization` | 超级管理员 / 机构管理员 |
 
 ## 提交规范（feat 填写说明）
 
@@ -167,6 +204,7 @@ npm run preview
 | `docs` | 文档变更 | `docs：补充平台模型中心使用说明` |
 | `test` | 测试相关 | `test：新增会话接管单元测试` |
 | `deps` | 依赖变更 | `deps：升级 Vite 至 7.x` |
+| `chore` | 构建 / 工具链调整 | `chore：忽略本地工作树目录` |
 
 示例：
 
@@ -180,6 +218,7 @@ git commit -m "feat：新增 AI 建议回复一键采纳到草稿"
 
 ## 说明
 
-- 本项目为 **前端演示原型**，所有数据均为本地 Mock，不涉及真实后端服务与真实用户数据
+- 前端为 **演示原型**，数据以本地 Mock 为主；接入后端后自动切换为真实 API（`/api` 代理已配置）
+- 后端 MVP 代码位于 `.worktrees/backend-mvp/`（git worktree，已忽略不入库），仓库仅托管前端与设计文档
 - 敏感字段（手机号、邮箱等）均已在展示层脱敏
-- 管理端操作（创建、停用、发布等）仅更新页面本地状态，不会持久化
+- 管理端操作（创建、停用、发布等）在演示模式下仅更新页面本地状态

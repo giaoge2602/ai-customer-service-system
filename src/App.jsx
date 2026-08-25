@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminConsole from './AdminConsole'
+import AgentWorkspaceShell from './AgentWorkspaceShell'
 import AuthPage from './AuthPage'
-import { canAccessPath, resolveHome } from './auth'
+import ServiceWorkspace, { CustomerChat } from './ServiceWorkspace'
+import { canAccessPath, resolveHome, resolveLoginPath, resolveLogoutPath } from './auth'
+import { getWorkArea } from './prototype'
 
 const Icon = ({ name, size = 18, stroke = 1.8 }) => {
   const paths = {
@@ -53,7 +56,7 @@ function readSession() {
 
 function ProtectedRoute({ session, children }) {
   const location = useLocation()
-  if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!session) return <Navigate to={resolveLoginPath(location.pathname)} replace state={{ from: location.pathname }} />
   if (!canAccessPath(session.role, location.pathname)) return <Navigate to={resolveHome(session.role)} replace />
   return children
 }
@@ -61,25 +64,38 @@ function ProtectedRoute({ session, children }) {
 function WorkbenchRoute({ session, onLogout }) {
   const params = useParams()
   const navigate = useNavigate()
+  const area = getWorkArea(`/workbench/${params.conversationId || ''}`)
+  if (area !== 'conversations') return <ServiceWorkspace area={area} session={session} onLogout={onLogout} />
   return <Workbench routeId={params.conversationId} navigate={navigate} session={session} onLogout={onLogout} />
 }
 
 function App() {
   const [session, setSession] = useState(readSession)
+  const navigate = useNavigate()
   const authenticate = (nextSession) => {
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
     setSession(nextSession)
   }
   const logout = () => {
+    const logoutPath = resolveLogoutPath(session?.role)
     window.sessionStorage.removeItem(SESSION_KEY)
     setSession(null)
+    navigate(logoutPath, { replace: true })
   }
 
   return <Routes>
-    <Route path="/" element={<Navigate to={session ? resolveHome(session.role) : '/login'} replace />} />
-    <Route path="/login" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="login" onAuthenticated={authenticate} />} />
-    <Route path="/register" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="register" onAuthenticated={authenticate} />} />
-    <Route path="/forgot-password" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage mode="recovery" onAuthenticated={authenticate} />} />
+    <Route path="/" element={<Navigate to={session ? resolveHome(session.role) : '/service/login'} replace />} />
+    <Route path="/login" element={<Navigate to="/service/login" replace />} />
+    <Route path="/register" element={<Navigate to="/service/register" replace />} />
+    <Route path="/forgot-password" element={<Navigate to="/service/forgot-password" replace />} />
+    <Route path="/chat" element={<Navigate to="/customer/chat" replace />} />
+    <Route path="/service/login" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="service-login" portal="service" mode="login" onAuthenticated={authenticate} />} />
+    <Route path="/service/register" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="service-register" portal="service" mode="register" onAuthenticated={authenticate} />} />
+    <Route path="/service/forgot-password" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="service-recovery" portal="service" mode="recovery" onAuthenticated={authenticate} />} />
+    <Route path="/admin/login" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="admin-login" portal="admin" mode="login" onAuthenticated={authenticate} />} />
+    <Route path="/admin/register" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="admin-register" portal="admin" mode="register" onAuthenticated={authenticate} />} />
+    <Route path="/admin/forgot-password" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="admin-recovery" portal="admin" mode="recovery" onAuthenticated={authenticate} />} />
+    <Route path="/customer/chat" element={<ProtectedRoute session={session}><CustomerChat onLogout={logout} /></ProtectedRoute>} />
     <Route path="/workbench" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
     <Route path="/workbench/:conversationId" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
     <Route path="/platform" element={<ProtectedRoute session={session}><Navigate to="/platform/overview" replace /></ProtectedRoute>} />
@@ -163,37 +179,8 @@ function Workbench({ routeId, navigate, session, onLogout }) {
   }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><Icon name="headset" size={20} /></div>
-          <div><strong>AI智能客服系统</strong><span>客服工作台</span></div>
-        </div>
-        <div className="workspace-title"><span className="live-dot" />华东服务中心 <span className="workspace-divider" />今日运营概览</div>
-        <div className="topbar-actions">
-          <div className="online-state"><span className="online-dot" />在线接待 <Icon name="down" size={13} /></div>
-          <button className="icon-button" aria-label="查看通知"><Icon name="bell" /></button>
-          <div className="agent-avatar">{session.name.slice(0, 1)}</div>
-          <div className="agent-meta"><strong>{session.name}</strong><span>{session.title}</span></div>
-          <button className="logout-button" onClick={onLogout}>退出</button>
-        </div>
-      </header>
-
-      <div className="workbench-layout">
-        <nav className="rail" aria-label="主导航">
-          <div className="rail-group">
-            <div className="rail-label">工作台</div>
-            <button className="rail-item active"><Icon name="grid" /><span>会话工作台</span><b>12</b></button>
-            <button className="rail-item"><Icon name="chart" /><span>运营看板</span></button>
-          </div>
-          <div className="rail-group">
-            <div className="rail-label">服务资源</div>
-            <button className="rail-item"><Icon name="book" /><span>知识库</span></button>
-            <button className="rail-item"><Icon name="ticket" /><span>工单协同</span><b className="muted-count">3</b></button>
-          </div>
-          <div className="rail-bottom"><button className="rail-item"><Icon name="settings" /><span>系统设置</span></button></div>
-        </nav>
-
+    <>
+      <AgentWorkspaceShell active="conversations" session={session} onLogout={onLogout}>
         <main className="workbench-main">
           <section className="conversation-column" aria-label="会话列表">
             <div className="column-header"><div><h1>会话</h1><p>{filtered.length} 个会话 · <em>12</em> 个待处理</p></div><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div>
@@ -216,13 +203,13 @@ function Workbench({ routeId, navigate, session, onLogout }) {
 
           <aside className={`context-column ${rightOpen ? '' : 'collapsed'}`} aria-label="客户与接管上下文"><div className="context-header"><div><h2>客户信息</h2><span>客户与会话上下文</span></div><button className="icon-button subtle" onClick={() => setRightOpen(!rightOpen)} aria-label={rightOpen ? '收起客户信息' : '展开客户信息'}><Icon name="chevron" size={16} /></button></div>{rightOpen && <div className="context-scroll"><CustomerCard selected={selected} /><PanelSection title="AI 接管摘要" icon="spark" open={selected.status !== 'ended'}><div className="summary-card"><div className="summary-label">客户当前诉求</div><p>{selected.handoff?.summary || '当前会话由 AI 正常接待，暂未触发人工接管。'}</p>{selected.handoff && <><div className="summary-divider" /><div className="summary-label">建议下一步</div><p>{selected.handoff.next}</p><div className="confidence-row"><span>AI 置信度</span><strong className={selected.handoff.confidence < 60 ? 'low' : ''}>{selected.handoff.confidence}%</strong></div></>}</div></PanelSection><PanelSection title="转人工原因" icon="headset" open={Boolean(selected.handoff)}>{selected.handoff ? <div className="reason-box"><span className="reason-icon"><Icon name="arrow" size={14} /></span><div><strong>{selected.handoff.reason}</strong><span>触发于 {selected.time === '刚刚' ? '刚刚' : '今天 14:28'}</span></div></div> : <div className="muted-empty">尚未触发人工接管</div>}</PanelSection><PanelSection title="知识引用" icon="book" open={Boolean(selected.handoff?.citations)}>{selected.handoff?.citations?.map((citation) => <div className="citation" key={citation}><Icon name="book" size={14} /><span>{citation}</span><Icon name="chevron" size={13} /></div>) || <div className="muted-empty">暂无引用</div>}</PanelSection><PanelSection title="备注与工单" icon="ticket" open><div className="note-area"><label htmlFor="agent-note">客服备注</label><textarea id="agent-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="记录本次服务要点..." /><button onClick={() => notify(note.trim() ? '备注已保存' : '请输入备注内容')}>保存备注</button></div><button className="create-ticket" onClick={() => setShowTicket(true)}><Icon name="plus" size={15} />创建关联工单 <Icon name="chevron" size={14} /></button></PanelSection></div>}</aside>
         </main>
-      </div>
+      </AgentWorkspaceShell>
       {!rightOpen && <button className="mobile-context-toggle" onClick={() => setRightOpen(true)}>查看客户信息</button>}
       {showTransfer && <Dialog title="转接会话" onClose={() => setShowTransfer(false)}><p className="dialog-copy">选择承接本次会话的技能组或客服，转接后你将失去发送权限。</p><label className="field-label" htmlFor="transfer-target">承接对象</label><select className="dialog-select" id="transfer-target"><option>售后支持组 · 3 人在线</option><option>技术支持组 · 2 人在线</option><option>客服主管 · 张宁</option></select><div className="dialog-actions"><button className="secondary-button" onClick={() => setShowTransfer(false)}>取消</button><button className="primary-button" onClick={() => { updateSelected({ status: 'queued', statusText: '已转接', assignee: '售后支持组' }); setShowTransfer(false); notify('会话已转接至售后支持组') }}>确认转接</button></div></Dialog>}
       {showTicket && <Dialog title="创建关联工单" onClose={() => setShowTicket(false)} wide><div className="ticket-form"><label className="field-label" htmlFor="ticket-title">工单标题</label><input id="ticket-title" placeholder="请输入需要协同处理的问题" defaultValue={`${selected.name} · ${selected.preview}`} /><div className="form-grid"><div><label className="field-label" htmlFor="ticket-type">问题分类</label><select className="dialog-select" id="ticket-type"><option>退款与售后</option><option>技术故障</option><option>客户投诉</option></select></div><div><label className="field-label" htmlFor="ticket-level">优先级</label><select className="dialog-select" id="ticket-level"><option>高</option><option>普通</option><option>紧急</option></select></div></div><label className="field-label" htmlFor="ticket-description">问题描述</label><textarea id="ticket-description" placeholder="补充处理背景和期望结果..." defaultValue={selected.handoff?.summary || ''} /></div><div className="dialog-actions"><button className="secondary-button" onClick={() => setShowTicket(false)}>取消</button><button className="primary-button" onClick={() => { setShowTicket(false); notify('工单 TK-20260819-026 已创建') }}>创建工单</button></div></Dialog>}
       <div className="sr-only" aria-live="polite">{toast}</div>{toast && <div className="toast"><span className="toast-check"><Icon name="check" size={14} /></span>{toast}</div>}
       <div className="mobile-warning">当前为 PC 客服工作台原型，请使用更宽的窗口获得完整三栏体验。</div>
-    </div>
+    </>
   )
 }
 

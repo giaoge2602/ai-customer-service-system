@@ -2,6 +2,46 @@
 
 本文件使用**中文**记录每个版本的任务产出、功能新增与修复内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 惯例。
 
+## [v0.3.0] - 2026-08-25
+
+### ✨ 新增：双前端入口 + 四角色认证 + 客户服务端
+
+本次迭代将系统从「单端演示」升级为**双门户架构**：客服/客户走服务中心，平台/机构管理员走管理中心，并新增客户聊天窗口与客服工作区扩展。
+
+#### 新增功能
+
+**双前端入口与四角色认证**
+- `service` 门户（`/service/*`）：客服坐席 + 客户；`admin` 门户（`/admin/*`）：超级管理员 + 机构管理员；两套品牌文案与注册流程隔离，可互相跳转
+- 后端 API 优先 + 演示降级：`loginWithDemoFallback` 优先调用 `/api/v1/auth/login`，后端不可用时自动降级本地演示账号
+- 四类注册：客服坐席 / 客户 / 机构管理员 / 超级管理员独立注册接口与表单校验
+- RBAC 扩展：新增 `customer` 角色、客户聊天路由、知识库与配置的管理员限定
+
+**客服工作区扩展（/workbench 子路由）**
+- 客服看板 `/workbench/dashboard`：团队工作负载、班次安排、交接提醒
+- 知识库 `/workbench/knowledge`：FAQ / 文档 / 未命中问题管理
+- AI 与界面配置 `/workbench/settings`：非工作时间 AI 接管时段、欢迎语、主题色，实时预览 + 发布
+
+**客户服务端（/customer/chat）**
+- 独立客户聊天窗口：常见问题快捷提问、会话状态机（欢迎 → 排队 → 接待 → 结束 → 评价）
+- AI / 人工模式自动判定：工作时段人工优先，非工作时间 AI 基于企业知识库接待（`resolveServiceMode`）
+
+**API 层与工程化**
+- `api.js`：业务接口封装（坐席 F-006、租户 F-002），自动附带 Bearer Token，支持分页搜索
+- `vite.config.js`：新增 `/api` 代理到后端 `localhost:4000`
+- `start.bat`：Windows 一键启动脚本（MySQL8 检查 → 后端 NestJS → 前端 Vite）
+- 单元测试扩展至 **29 个用例**（新增 `authPortal.test.js`、`prototype.test.js`），`npm test` 全绿
+
+**设计文档与原型产出**
+- `docs/原型设计/`：7 个高保真 HTML 原型页（登录页、PC 客服工作台、客户 Web 入口、平台管理后台、租户运营后台等）
+- `docs/superpowers/`：新增双前端认证设计规格与实施计划（对应此前 2 个 docs 提交）
+- `output/`：第一期五份文档交付（产品思维导图、详细设计、原型设计、简化版、技术选型），md / html / docx 三态
+- `AI智能客服系统 第一期产品思维导图.pdf`：产品思维导图源文件
+
+#### 技术说明
+- 认证逻辑保持纯函数化（`auth.js` / `authPortal.js` / `prototype.js`），与 UI 解耦，可测试性良好
+- 后端 MVP 代码位于 `.worktrees/backend-mvp/`（git worktree，`.gitignore` 已忽略），仓库托管前端与文档
+- 未启动后端时全部功能可离线演示，接入后端后无缝切换真实 API
+
 ## [v0.2.0] - 2026-08-20
 
 ### ✨ 新增：登录认证与权限控制

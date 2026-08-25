@@ -1,0 +1,51 @@
+request_id: proto-design-v1
+entry_type: full_pipeline
+created_at: 2026-08-21T11:30:23+08:00
+current_stage: 3
+
+stages:
+  stage_0:
+    status: completed
+    completed_at: 2026-08-21T11:30:25+08:00
+    entry_type: full_pipeline
+    decision: 用户要求从零创作一份原型设计文档（Word），无文档 + 创作动词（写/设计文档）→ full_pipeline
+
+  stage_1:
+    status: completed
+    started_at: 2026-08-21T11:30:28+08:00
+    completed_at: 2026-08-21T11:31:30+08:00
+    entry: doc-writer
+    route_tag: general_writing
+    genre: general
+    expert_used: general-writer
+    output_path: stage1/final_draft.md
+    critic_decision: skip (L1 general 低风险默认 skip)
+
+  stage_2:
+    status: completed
+    entry: doc-formatter
+    stage2_flow: true
+    intermediate_dir: stage2/intermediate/
+    output_path: stage2/formatted-原型设计文档.html
+
+  stage_3:
+    status: completed
+    entry: doc-converter
+    executor: doc-converter
+    skill_used: [html-to-docx]
+    input_format: html
+    html_output_path: stage2/formatted-原型设计文档.html
+    output_path: stage3/output.docx
+    present_files_opened: true
+    fallback: false
+    fallback_reason: null
+    warnings: []
+
+consistency_check:
+  chain: [S1 创作, S2 排版, S3 转换]
+  all_stages_completed: true
+  final_deliverable: output/proto-design-v1/stage3/output.docx
+  html_review_attempts: 3
+  html_review_final_score: 80
+
+updated_at: 2026-08-21T11:39:30+08:00

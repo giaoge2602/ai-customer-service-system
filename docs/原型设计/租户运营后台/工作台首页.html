@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>租户工作台首页 · 系统 2</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:#f1f5f9; color:#0f172a; font-size:13.5px}
+  .app{display:grid; grid-template-columns:240px 1fr; min-height:100vh}
+  .side{background:#fff; border-right:1px solid #e2e8f0; padding:18px 0; position:sticky; top:0; height:100vh; overflow-y:auto}
+  .side .brand{padding:0 18px 18px; border-bottom:1px solid #e2e8f0; margin-bottom:12px}
+  .side .brand h1{font-size:15px; color:#0f172a; display:flex; align-items:center; gap:8px}
+  .side .brand .ico{width:30px; height:30px; background:linear-gradient(135deg,#f59e0b,#d97706); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff}
+  .side .brand small{font-size:10.5px; color:#64748b; display:block; margin-top:3px; font-weight:400}
+  .side .tenant-card{margin:0 14px 14px; padding:10px 12px; background:linear-gradient(135deg,#fef3c7 0%,#fef9e7 100%); border:1px solid #fde68a; border-radius:8px; font-size:12px}
+  .side .tenant-card .top{display:flex; align-items:center; gap:6px; color:#92400e; font-weight:600; margin-bottom:4px}
+  .side .tenant-card .meta{color:#a16207; font-size:11px}
+  .side .tenant-card .progress{margin-top:6px; height:4px; background:rgba(146,64,14,.15); border-radius:2px; overflow:hidden}
+  .side .tenant-card .progress .fill{height:100%; background:linear-gradient(90deg,#f59e0b,#fbbf24); border-radius:2px}
+  .nav-group{padding:6px 0}
+  .nav-title{font-size:10.5px; color:#94a3b8; padding:8px 18px 4px; letter-spacing:1px; text-transform:uppercase; font-weight:600}
+  .nav-item{display:flex; align-items:center; gap:10px; padding:9px 18px; color:#475569; font-size:13px; cursor:pointer; border-left:3px solid transparent}
+  .nav-item:hover{background:#f8fafc; color:#0f172a}
+  .nav-item.active{background:#fef3c7; color:#92400e; border-left-color:#f59e0b; font-weight:500}
+  .nav-item .ico{width:18px; text-align:center; font-size:14px; color:#94a3b8}
+  .nav-item.active .ico{color:#d97706}
+  .nav-item .tag{margin-left:auto; font-size:10px; background:#fbbf24; color:#fff; padding:1px 6px; border-radius:10px}
+  .nav-item .tag.red{background:#dc2626}
+  .nav-item .future{font-size:10px; color:#94a3b8; margin-left:auto}
+  main{padding:0}
+  .topbar{background:#fff; border-bottom:1px solid #e2e8f0; padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10}
+  .crumbs{font-size:13px; color:#64748b}
+  .crumbs b{color:#0f172a}
+  .topbar-right{display:flex; align-items:center; gap:16px}
+  .search{width:280px; height:34px; padding:0 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#0f172a}
+  .ico-btn{width:34px; height:34px; border-radius:8px; background:transparent; border:0; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:15px; color:#475569; position:relative}
+  .ico-btn:hover{background:#f1f5f9}
+  .ico-btn .dot{position:absolute; top:6px; right:6px; width:8px; height:8px; background:#dc2626; border-radius:50%; border:2px solid #fff}
+  .user{display:flex; align-items:center; gap:8px; padding:4px 10px 4px 4px; border-radius:8px; cursor:pointer}
+  .avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600}
+  .content{padding:24px}
+  .welcome{padding:18px 22px; background:linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); border-radius:14px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; position:relative; overflow:hidden}
+  .welcome::after{content:"🎉"; position:absolute; right:30px; top:50%; transform:translateY(-50%); font-size:60px; opacity:.2}
+  .welcome h1{font-size:20px; color:#7c2d12; margin-bottom:4px; font-weight:700}
+  .welcome p{color:#9a3412; font-size:13px; max-width:600px; line-height:1.6}
+  .welcome .actions{display:flex; gap:8px; position:relative; z-index:1}
+  .btn{padding:9px 16px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; border:1px solid #e2e8f0; background:#fff; color:#334155; display:inline-flex; align-items:center; gap:6px; font-family:inherit}
+  .btn:hover{background:#f8fafc; border-color:#cbd5e1}
+  .btn-primary{background:linear-gradient(90deg,#f59e0b,#d97706); color:#fff; border:0; box-shadow:0 2px 6px rgba(245,158,11,.25)}
+  .btn-primary:hover{background:linear-gradient(90deg,#d97706,#b45309); box-shadow:0 4px 12px rgba(245,158,11,.35)}
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px}
+  .kpi{background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; position:relative; overflow:hidden}
+  .kpi .l{font-size:12.5px; color:#64748b; margin-bottom:6px}
+  .kpi .v{font-size:26px; font-weight:700; color:#0f172a; line-height:1.1; display:flex; align-items:baseline; gap:6px}
+  .kpi .v small{font-size:12px; color:#64748b; font-weight:400}
+  .kpi .delta{font-size:11.5px; margin-top:6px; display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:4px}
+  .kpi .delta.up{background:#dcfce7; color:#15803d}
+  .kpi .delta.down{background:#fee2e2; color:#b91c1c}
+  .row{display:grid; gap:14px; margin-bottom:14px}
+  .row.r2{grid-template-columns:1.4fr 1fr}
+  .card{background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px 22px}
+  .card h3{font-size:14px; font-weight:600; color:#0f172a; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between}
+  .card h3 .more{font-size:12px; color:#d97706; font-weight:400; cursor:pointer}
+  .init-bar{background:linear-gradient(90deg, #fef3c7 0%, #fef9e7 50%, #ecfdf5 100%); border:1px solid #fde68a; border-radius:12px; padding:16px 20px; margin-bottom:18px}
+  .init-bar .top{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px}
+  .init-bar h3{font-size:14px; color:#78350f; font-weight:600}
+  .init-bar .step-row{display:flex; align-items:center; gap:0; flex-wrap:wrap; margin-top:8px}
+  .step{padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; font-size:12.5px; color:#475569; display:flex; align-items:center; gap:6px}
+  .step.done{background:#dcfce7; color:#15803d; border-color:#86efac; font-weight:500}
+  .step.current{background:#fef3c7; color:#92400e; border-color:#fbbf24; font-weight:500; box-shadow:0 0 0 3px rgba(245,158,11,.2)}
+  .step .ico{font-size:14px}
+  .step-arrow{color:#cbd5e1; padding:0 4px}
+  .chart{height:200px; position:relative}
+  .chart svg{width:100%; height:100%}
+  .legend{display:flex; gap:14px; font-size:12px; color:#475569; padding:6px 0}
+  .legend span::before{content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle}
+  .lg-blue::before{background:#3b82f6}
+  .lg-purple::before{background:#8b5cf6}
+  .lg-amber::before{background:#f59e0b}
+  .lg-green::before{background:#10b981}
+  .session-row{padding:10px 0; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:10px; font-size:13px; cursor:pointer}
+  .session-row:hover{background:#fafbff; margin:0 -10px; padding:10px; border-radius:6px}
+  .session-row:last-child{border-bottom:0}
+  .session-row .av{width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff; font-weight:600; flex-shrink:0}
+  .session-row .body{flex:1; min-width:0}
+  .session-row .top{display:flex; justify-content:space-between; align-items:center}
+  .session-row .name{font-weight:500; color:#0f172a; font-size:13px}
+  .session-row .time{font-size:11px; color:#94a3b8}
+  .session-row .preview{font-size:12px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+  .status-pill{display:inline-block; padding:1px 8px; border-radius:4px; font-size:11px; font-weight:500; flex-shrink:0}
+  .p-green{background:#dcfce7; color:#15803d}
+  .p-amber{background:#fef3c7; color:#b45309}
+  .p-red{background:#fee2e2; color:#b91c1c}
+  .p-blue{background:#dbeafe; color:#1d4ed8}
+  .p-gray{background:#e2e8f0; color:#475569}
+  .p-purple{background:#ede9fe; color:#6d28d9}
+  .todo-item{padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:8px; display:flex; align-items:center; gap:10px; font-size:13px; cursor:pointer; transition:all .15s}
+  .todo-item:hover{background:#f1f5f9; border-color:#cbd5e1}
+  .todo-item.urgent{border-color:#fbbf24; background:linear-gradient(90deg,#fffbeb,#fff)}
+  .todo-item.urgent .ico{color:#f59e0b}
+  .todo-item .ico{font-size:16px; color:#64748b}
+  .todo-item .body{flex:1}
+  .todo-item .name{font-weight:500; color:#0f172a; font-size:13px}
+  .todo-item .meta{font-size:11.5px; color:#64748b; margin-top:2px}
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:4px}
+  .badge{display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:500; background:#eef2ff; color:#4338ca}
+  .badge.green{background:#dcfce7; color:#15803d}
+  .badge.amber{background:#fef3c7; color:#b45309}
+  .badge.rose{background:#ffe4e6; color:#be123c}
+  .quick-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:10px}
+  .quick-tile{padding:14px 16px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer; transition:all .15s; text-align:center}
+  .quick-tile:hover{border-color:#f59e0b; background:#fffbeb; transform:translateY(-1px); box-shadow:0 4px 12px rgba(245,158,11,.1)}
+  .quick-tile .ico{font-size:24px; margin-bottom:6px; display:block}
+  .quick-tile b{font-size:12.5px; color:#0f172a; display:block}
+  .quick-tile span{font-size:11px; color:#64748b}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <h1><span class="ico">🏢</span>示例科技</h1>
+      <small>租户运营后台 · V1</small>
+    </div>
+    <div class="tenant-card">
+      <div class="top">📦 企业版</div>
+      <div class="meta">到期 2026-11-15 · 87 天</div>
+      <div class="progress"><div class="fill" style="width:64%"></div></div>
+      <div class="meta" style="margin-top:4px">坐席 32/50 · Token 8.2M/10M</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">运营</div>
+      <div class="nav-item active"><span class="ico">🏠</span>工作台</div>
+      <div class="nav-item"><span class="ico">🔔</span>待办与告警 <span class="tag red">5</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">业务</div>
+      <div class="nav-item"><span class="ico">👥</span>客服与组织</div>
+      <div class="nav-item"><span class="ico">👤</span>客户中心</div>
+      <div class="nav-item"><span class="ico">📚</span>知识库 <span class="future">二期</span></div>
+      <div class="nav-item"><span class="ico">🤖</span>AI 配置</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">渠道</div>
+      <div class="nav-item"><span class="ico">🔌</span>Web Widget</div>
+      <div class="nav-item"><span class="ico">🔗</span>Open API</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">数据</div>
+      <div class="nav-item"><span class="ico">🔍</span>会话检索</div>
+      <div class="nav-item"><span class="ico">📈</span>运营报表 <span class="future">扩展</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">设置</div>
+      <div class="nav-item"><span class="ico">⚙️</span>机构信息</div>
+      <div class="nav-item"><span class="ico">🔐</span>安全与登录</div>
+      <div class="nav-item"><span class="ico">📋</span>操作日志</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="crumbs">系统 2 · 租户运营后台 / <b>工作台</b></div>
+      <div class="topbar-right">
+        <input class="search" placeholder="🔍 客户 / 会话 / 客服 / 知识">
+        <button class="ico-btn">📅</button>
+        <button class="ico-btn">🔔<span class="dot"></span></button>
+        <div class="user">
+          <div class="avatar">李</div>
+          <div><div class="name">李总</div><div class="role">租户管理员</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="welcome">
+        <div>
+          <h1>李总，下午好 👋</h1>
+          <p>示例科技客服系统已运行 28 天 · 累计接待 1,284 次会话，平均 AI 解决率 76.4% · 客户满意度 4.7/5</p>
+          <div class="badge-row">
+            <span class="badge">F-039 运营报表</span>
+            <span class="badge">F-044 运维监控</span>
+            <span class="badge rose">5 个待办</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn">⚙️ 系统设置</button>
+          <button class="btn-primary">+ 创建客服</button>
+        </div>
+      </div>
+
+      <div class="init-bar">
+        <div class="top">
+          <h3>🚀 租户初始化进度 · 5/5 全部完成 ✅</h3>
+          <span style="font-size:12px; color:#15803d">已上线 · 2026-07-24</span>
+        </div>
+        <div class="step-row">
+          <div class="step done"><span class="ico">✓</span>创建租户</div>
+          <span class="step-arrow">→</span>
+          <div class="step done"><span class="ico">✓</span>设置密码</div>
+          <span class="step-arrow">→</span>
+          <div class="step done"><span class="ico">✓</span>创建团队</div>
+          <span class="step-arrow">→</span>
+          <div class="step done"><span class="ico">✓</span>上传知识库</div>
+          <span class="step-arrow">→</span>
+          <div class="step done"><span class="ico">✓</span>配置 AI</div>
+          <span class="step-arrow">→</span>
+          <div class="step done"><span class="ico">✓</span>发布 Widget</div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="l">今日会话</div><div class="v">82<small>条</small></div><div class="delta up">↑ 12 较昨日</div></div>
+        <div class="kpi"><div class="l">在线客服</div><div class="v">8<small>/32</small></div><div class="delta up">25% 在线率</div></div>
+        <div class="kpi"><div class="l">AI 解决率</div><div class="v">76.4<small>%</small></div><div class="delta up">↑ 3.2pp</div></div>
+        <div class="kpi"><div class="l">客户满意度</div><div class="v">4.7<small>/5</small></div><div class="delta up">↑ 0.1</div></div>
+        <div class="kpi"><div class="l">平均首次响应</div><div class="v">1.4<small>s</small></div><div class="delta down">↓ 0.3s</div></div>
+        <div class="kpi"><div class="l">平均处理时长</div><div class="v">3.8<small>min</small></div><div class="delta up">↓ 0.4min</div></div>
+        <div class="kpi"><div class="l">新增客户（今日）</div><div class="v">14</div><div class="delta up">↑ 5</div></div>
+        <div class="kpi"><div class="l">未读告警</div><div class="v">3</div><div class="delta down" style="background:#fee2e2; color:#b91c1c">1 P0 待处理</div></div>
+      </div>
+
+      <div class="row r2">
+        <div class="card">
+          <h3>接待量与 AI 解决率趋势（近 7 天） <span class="more">查看详情</span></h3>
+          <div class="legend">
+            <span class="lg-blue">接待量</span>
+            <span class="lg-amber">AI 转人工率</span>
+            <span class="lg-green">AI 解决率</span>
+          </div>
+          <div class="chart">
+            <svg viewBox="0 0 600 180" preserveAspectRatio="none">
+              <g stroke="#f1f5f9" stroke-dasharray="3 3">
+                <line x1="0" y1="40" x2="600" y2="40"/>
+                <line x1="0" y1="100" x2="600" y2="100"/>
+                <line x1="0" y1="160" x2="600" y2="160"/>
+              </g>
+              <path d="M0 140 L100 120 L200 110 L300 100 L400 90 L500 80 L600 70" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+              <path d="M0 90 L100 100 L200 110 L300 95 L400 105 L500 90 L600 95" stroke="#f59e0b" stroke-width="2" fill="none" stroke-dasharray="4 3"/>
+              <path d="M0 110 L100 95 L200 80 L300 70 L400 60 L500 55 L600 50" stroke="#10b981" stroke-width="2.5" fill="none"/>
+              <g font-size="10" fill="#94a3b8" text-anchor="middle">
+                <text x="0" y="175">8/15</text>
+                <text x="100" y="175">8/16</text>
+                <text x="200" y="175">8/17</text>
+                <text x="300" y="175">8/18</text>
+                <text x="400" y="175">8/19</text>
+                <text x="500" y="175">8/20</text>
+                <text x="600" y="175">8/21</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🔥 待办与告警 <span class="more">查看全部 (5)</span></h3>
+          <div class="todo-item urgent">
+            <div class="ico">🔥</div>
+            <div class="body">
+              <div class="name">DeepSeek-V3 API 超时率升高</div>
+              <div class="meta">11:14 · 影响 8 条会话 · 持续 6 分钟</div>
+            </div>
+            <span class="status-pill p-red">P0</span>
+          </div>
+          <div class="todo-item urgent">
+            <div class="ico">⚠</div>
+            <div class="body">
+              <div class="name">客户「陈先生」连续 3 次 AI 失败</div>
+              <div class="meta">10:58 · 建议立即人工介入</div>
+            </div>
+            <span class="status-pill p-amber">P1</span>
+          </div>
+          <div class="todo-item">
+            <div class="ico">📚</div>
+            <div class="body">
+              <div class="name">12 个 FAQ 知识待审核</div>
+              <div class="meta">昨天 · 来自知识运营</div>
+            </div>
+            <span class="status-pill p-blue">待审</span>
+          </div>
+          <div class="todo-item">
+            <div class="ico">👤</div>
+            <div class="body">
+              <div class="name">3 位客服账号密码将于 3 天后过期</div>
+              <div class="meta">建议提醒改密</div>
+            </div>
+            <span class="status-pill p-amber">P2</span>
+          </div>
+          <div class="todo-item">
+            <div class="ico">📊</div>
+            <div class="body">
+              <div class="name">本月 AI Token 已使用 82%</div>
+              <div class="meta">建议升级套餐或监控用量</div>
+            </div>
+            <span class="status-pill p-amber">配额</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row r2">
+        <div class="card">
+          <h3>实时会话动态 <span class="more">进入工作台</span></h3>
+          <div class="session-row">
+            <div class="av" style="background:linear-gradient(135deg,#f59e0b,#dc2626)">王</div>
+            <div class="body">
+              <div class="top"><span class="name">王女士 <span class="status-pill tp-vip" style="font-size:10px; padding:0 5px">VIP</span></span><span class="time">刚刚</span></div>
+              <div class="preview">VIP 客户 · 客服小李已接管 · 预约到货通知</div>
+            </div>
+            <span class="status-pill p-green">人工</span>
+          </div>
+          <div class="session-row">
+            <div class="av" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">陈</div>
+            <div class="body">
+              <div class="top"><span class="name">陈先生</span><span class="time">2 分钟前</span></div>
+              <div class="preview">订单物流查询 · AI 已回答 1 次</div>
+            </div>
+            <span class="status-pill p-blue">AI</span>
+          </div>
+          <div class="session-row">
+            <div class="av" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)">李</div>
+            <div class="body">
+              <div class="top"><span class="name">李先生</span><span class="time">5 分钟前</span></div>
+              <div class="preview">客户主动要求转人工 · 排队 1 位</div>
+            </div>
+            <span class="status-pill p-amber">排队</span>
+          </div>
+          <div class="session-row">
+            <div class="av" style="background:linear-gradient(135deg,#06b6d4,#10b981)">刘</div>
+            <div class="body">
+              <div class="top"><span class="name">刘女士</span><span class="time">8 分钟前</span></div>
+              <div class="preview">AI 已回答 3 次 · 置信度 0.38 触发转人工</div>
+            </div>
+            <span class="status-pill p-blue">AI</span>
+          </div>
+          <div class="session-row">
+            <div class="av" style="background:linear-gradient(135deg,#7c3aed,#ec4899)">赵</div>
+            <div class="body">
+              <div class="top"><span class="name">赵女士 <span class="status-pill tp-vip" style="font-size:10px; padding:0 5px">VIP</span></span><span class="time">12 分钟前</span></div>
+              <div class="preview">已转接给售后组 · 等待接管</div>
+            </div>
+            <span class="status-pill p-purple">转接</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🚀 快捷入口</h3>
+          <div class="quick-grid">
+            <div class="quick-tile">
+              <span class="ico">👤</span>
+              <b>新增客服</b>
+              <span>创建客服账号</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">📥</span>
+              <b>导入客户</b>
+              <span>CSV / Excel</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">📚</span>
+              <b>上传知识</b>
+              <span>PDF / FAQ</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">🔌</span>
+              <b>配置 Widget</b>
+              <span>颜色 / 位置</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">🤖</span>
+              <b>切换 AI 模型</b>
+              <span>DeepSeek / GLM</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">🔗</span>
+              <b>Open API</b>
+              <span>生成密钥</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">📈</span>
+              <b>查看报表</b>
+              <span>运营 / 满意度</span>
+            </div>
+            <div class="quick-tile">
+              <span class="ico">⚙️</span>
+              <b>系统设置</b>
+              <span>机构 / 安全</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

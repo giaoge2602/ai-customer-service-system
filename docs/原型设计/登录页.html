@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>登录页 · AI 智能客服系统 V1</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; height:100vh; overflow:hidden; background:#0f172a; color:#fff}
+  .split{display:grid; grid-template-columns:1fr 480px; height:100vh}
+  .left{position:relative; background:linear-gradient(135deg,#1e3a8a 0%,#0f172a 50%,#4c1d95 100%); display:flex; flex-direction:column; justify-content:space-between; padding:48px 56px; overflow:hidden}
+  .left::before{content:""; position:absolute; top:-200px; right:-200px; width:600px; height:600px; background:radial-gradient(circle, rgba(124,58,237,.3), transparent 70%); border-radius:50%}
+  .left::after{content:""; position:absolute; bottom:-300px; left:-100px; width:500px; height:500px; background:radial-gradient(circle, rgba(37,99,235,.25), transparent 70%); border-radius:50%}
+  .logo{display:flex; align-items:center; gap:12px; position:relative; z-index:1}
+  .logo-ico{width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 4px 16px rgba(99,102,241,.4)}
+  .logo h1{font-size:18px; font-weight:600; letter-spacing:.3px}
+  .logo small{font-size:11px; color:#94a3b8; display:block; margin-top:2px}
+  .hero{position:relative; z-index:1; max-width:520px}
+  .hero h2{font-size:38px; line-height:1.3; font-weight:700; margin-bottom:18px; letter-spacing:-.5px}
+  .hero h2 b{background:linear-gradient(90deg,#60a5fa,#a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .hero p{font-size:15px; color:#cbd5e1; line-height:1.7; margin-bottom:28px}
+  .features{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .feat{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); backdrop-filter:blur(8px); border-radius:10px; padding:14px 16px}
+  .feat .ico{font-size:18px; margin-bottom:6px}
+  .feat b{display:block; font-size:13px; margin-bottom:2px; color:#e2e8f0}
+  .feat span{font-size:12px; color:#94a3b8}
+  .foot{position:relative; z-index:1; font-size:12px; color:#64748b; display:flex; justify-content:space-between; align-items:center}
+  .right{background:#fff; color:#0f172a; padding:48px 56px; display:flex; flex-direction:column; justify-content:center; overflow-y:auto}
+  .right h3{font-size:26px; font-weight:700; margin-bottom:6px; color:#0f172a}
+  .right .sub{font-size:13px; color:#64748b; margin-bottom:32px}
+  .tabs{display:flex; gap:0; border-bottom:1px solid #e2e8f0; margin-bottom:28px}
+  .tab{padding:10px 18px; font-size:14px; color:#64748b; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; font-weight:500}
+  .tab.active{color:#2563eb; border-bottom-color:#2563eb}
+  .form-row{margin-bottom:18px}
+  .label{display:block; font-size:12.5px; color:#334155; font-weight:500; margin-bottom:6px}
+  .label .req{color:#dc2626; margin-left:2px}
+  .input{width:100%; height:42px; padding:0 14px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; color:#0f172a; background:#f8fafc; transition:all .15s; outline:0; font-family:inherit}
+  .input:focus{border-color:#2563eb; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+  .input-group{position:relative}
+  .input-group .ico{position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:14px}
+  .input-group .input{padding-left:40px}
+  .input-group .toggle{position:absolute; right:14px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:12px; cursor:pointer}
+  .row-between{display:flex; justify-content:space-between; align-items:center; margin:6px 0 24px 0; font-size:13px}
+  .checkbox{display:flex; align-items:center; gap:6px; color:#475569; cursor:pointer}
+  .checkbox input{accent-color:#2563eb}
+  .forgot{color:#2563eb; text-decoration:none; font-size:13px}
+  .forgot:hover{text-decoration:underline}
+  .btn{width:100%; height:44px; background:linear-gradient(90deg,#2563eb,#4f46e5); color:#fff; border:0; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; transition:all .15s; box-shadow:0 4px 12px rgba(37,99,235,.25); font-family:inherit}
+  .btn:hover{transform:translateY(-1px); box-shadow:0 6px 20px rgba(37,99,235,.35)}
+  .divider{display:flex; align-items:center; gap:14px; margin:24px 0; color:#94a3b8; font-size:12px}
+  .divider::before,.divider::after{content:""; flex:1; height:1px; background:#e2e8f0}
+  .btn-secondary{height:42px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; color:#475569; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:inherit}
+  .btn-secondary:hover{background:#f1f5f9; border-color:#cbd5e1}
+  .alt-acts{margin-top:auto; padding-top:24px; text-align:center; font-size:13px; color:#64748b}
+  .alt-acts a{color:#2563eb; text-decoration:none}
+  .meta-info{display:flex; gap:20px; margin-top:24px; padding:16px; background:#f8fafc; border-radius:10px; font-size:11.5px; color:#64748b; line-height:1.7}
+  .meta-info b{color:#334155; display:block; font-size:12px; margin-bottom:4px}
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:24px}
+  .badge{display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:500; background:#dbeafe; color:#1d4ed8}
+  .badge.green{background:#dcfce7; color:#15803d}
+  .badge.amber{background:#fef3c7; color:#b45309}
+  .role-tabs{display:flex; gap:8px; margin-bottom:24px}
+  .role-tab{flex:1; padding:10px; border:1px solid #e2e8f0; border-radius:8px; text-align:center; cursor:pointer; font-size:12px; color:#64748b; background:#f8fafc; transition:all .15s}
+  .role-tab.active{border-color:#2563eb; background:#eff6ff; color:#2563eb; font-weight:500}
+  .role-tab .ico{font-size:16px; display:block; margin-bottom:4px}
+  .info-card{padding:14px 16px; background:linear-gradient(135deg,#fef3c7 0%, #fef9e7 100%); border:1px solid #fcd34d; border-radius:8px; font-size:12.5px; color:#92400e; margin-bottom:20px; line-height:1.6}
+  .info-card b{color:#78350f}
+</style>
+</head>
+<body>
+<div class="split">
+  <div class="left">
+    <div class="logo">
+      <div class="logo-ico">🛡</div>
+      <div>
+        <h1>AI 智能客服系统</h1>
+        <small>V1 数据底座版 · 多租户 SaaS</small>
+      </div>
+    </div>
+
+    <div class="hero">
+      <h2>AI 优先接待 <b>·</b><br>人工可控接管</h2>
+      <p>面向企业/机构的多租户智能客服平台。7×24 AI 自动应答 · RAG 知识驱动 · 三端实时协同 · 完整数据底座。</p>
+
+      <div class="features">
+        <div class="feat"><div class="ico">🤖</div><b>AI 优先</b><span>知识驱动回答</span></div>
+        <div class="feat"><div class="ico">🎧</div><b>人工协同</b><span>上下文接管</span></div>
+        <div class="feat"><div class="ico">🛡</div><b>多租户</b><span>数据强隔离</span></div>
+        <div class="feat"><div class="ico">📊</div><b>可观测</b><span>运营闭环</span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>© 2026 AI 智能客服 · WorkBuddy Demo</span>
+      <span>v1.0.0 · 19 项核心功能</span>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="badge-row">
+      <span class="badge">7.10 登录与账号体系</span>
+      <span class="badge green">JWT 鉴权</span>
+      <span class="badge amber">2FA 可选</span>
+    </div>
+
+    <div class="role-tabs">
+      <div class="role-tab"><span class="ico">🛡</span>超级管理员</div>
+      <div class="role-tab active"><span class="ico">🏢</span>租户管理员</div>
+      <div class="role-tab"><span class="ico">🧑‍💼</span>客服主管</div>
+      <div class="role-tab"><span class="ico">🎧</span>客服人员</div>
+    </div>
+
+    <h3>欢迎回来 👋</h3>
+    <div class="sub">登录到「示例科技 · 租户工作台」</div>
+
+    <div class="info-card">
+      <b>💡 演示提示：</b>本页为系统 5（登录与账号体系）原型，对应 PRD 7.10。V1 必做功能：登录、邀请、密码管理、Token 刷新、RBAC。
+    </div>
+
+    <div class="form-row">
+      <label class="label">登录账号<span class="req">*</span></label>
+      <div class="input-group">
+        <span class="ico">👤</span>
+        <input class="input" value="admin@ai-customer.com" placeholder="手机号 / 邮箱 / 员工号">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="label">密码<span class="req">*</span></label>
+      <div class="input-group">
+        <span class="ico">🔒</span>
+        <input class="input" type="password" value="••••••••••" placeholder="8-20 位 · 字母+数字+特殊字符">
+        <span class="toggle">👁</span>
+      </div>
+    </div>
+
+    <div class="row-between">
+      <label class="checkbox"><input type="checkbox" checked> 7 天内自动登录</label>
+      <a class="forgot" href="#">忘记密码？</a>
+    </div>
+
+    <button class="btn">登 录</button>
+
+    <div class="divider">其他登录方式</div>
+    <button class="btn-secondary">📱 短信验证码登录</button>
+    <button class="btn-secondary" style="margin-top:8px">🔐 企业 SSO 登录（OAuth2 / LDAP）</button>
+
+    <div class="alt-acts">
+      还没有账号？<a href="#">联系租户管理员发送邀请</a>
+    </div>
+
+    <div class="meta-info">
+      <div>
+        <b>鉴权</b>
+        JWT 携带 user_id / tenant_id / role / permissions<br>
+        Access Token 2h · Refresh 7d
+      </div>
+      <div>
+        <b>安全</b>
+        5 次密码错误锁定 30 分钟<br>
+        异地登录触发短信告警
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -6,6 +6,7 @@ import './styles.css'
 import './admin.css'
 import './polish.css'
 import './auth.css'
+import './prototype.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
