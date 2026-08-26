@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案三 · 平台全局视角 — 超级管理员看板</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --purple: #8b5cf6;
+    --indigo: #6366f1;
+    --teal: #06b6d4;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .shell { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    gap: 16px; flex-wrap: wrap;
+  }
+  .tenant-switch { display: flex; align-items: center; gap: 8px; }
+  .tenant-switch select {
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .alert-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 20px;
+    background: #fef2f2; color: var(--danger);
+    font-size: 12px; font-weight: 500;
+  }
+  .alert-banner .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); }
+  .topbar-right .role { color: var(--text); font-weight: 500; }
+
+  /* ===== Metrics Row ===== */
+  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding: 20px 24px; }
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .metric-card .label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  .metric-card .value { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; }
+  .metric-card .delta { font-size: 12px; margin-top: 4px; }
+  .metric-card .sparkline { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); opacity: 0.5; }
+
+  /* ===== Main Layout ===== */
+  .main { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; padding: 0 24px 24px; flex: 1; min-height: 0; }
+  
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    display: flex; flex-direction: column; min-height: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-header h3 { font-size: 14px; font-weight: 600; }
+  .panel-header .count { font-size: 11px; color: var(--text-muted); }
+
+  /* Tenant Table */
+  .tenant-table { width: 100%; border-collapse: collapse; }
+  .tenant-table th { text-align: left; padding: 10px 12px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .tenant-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .tenant-table tr:last-child td { border-bottom: none; }
+  .tenant-table .name-cell { font-weight: 600; }
+  .tenant-table .id-cell { font-size: 11px; color: var(--text-muted); }
+  .pill { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+  .pill.success { background: #dcfce7; color: #16a34a; }
+  .pill.warning { background: #fef3c7; color: #d97706; }
+  .pill.danger { background: #fef2f2; color: var(--danger); }
+  .pill.muted { background: #e2e8f0; color: #64748b; }
+
+  /* Progress Bar */
+  .progress { display: flex; align-items: center; gap: 8px; }
+  .progress-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-bar i { display: block; height: 100%; border-radius: 3px; }
+  .progress-bar.ok i { background: var(--success); }
+  .progress-bar.warn i { background: var(--warning); }
+  .progress-bar.crit i { background: var(--danger); }
+  .progress-val { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
+
+  /* Right Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+
+  /* Chart Area */
+  .chart-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .chart-canvas { flex: 1; background: var(--surface-2); border-radius: 8px; position: relative; overflow: hidden; min-height: 160px; }
+  .chart-canvas svg { width: 100%; height: 100%; display: block; }
+  .chart-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; }
+  .chart-legend span { display: flex; align-items: center; gap: 4px; }
+  .chart-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* Alerts */
+  .alert-item { display: flex; gap: 10px; padding: 10px; background: var(--surface-2); border-radius: 8px; margin-bottom: 8px; }
+  .alert-icon { flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .alert-icon.danger { background: #fef2f2; color: var(--danger); }
+  .alert-icon.warning { background: #fffbeb; color: var(--warning); }
+  .alert-icon.info { background: #eff6ff; color: var(--accent); }
+  .alert-content { flex: 1; }
+  .alert-content .title { font-size: 12px; font-weight: 500; }
+  .alert-content .desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .alert-action { flex-shrink: 0; align-self: center; }
+  .alert-action button { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; }
+
+  /* Service Status */
+  .service-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .service-row:last-child { border-bottom: none; }
+  .service-name { font-size: 12px; flex: 1; }
+  .service-latency { font-size: 12px; color: var(--text-muted); }
+  .service-status { font-size: 11px; font-weight: 500; }
+  .service-status.ok { color: var(--success); }
+  .service-status.warn { color: var(--warning); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="tenant-switch">
+      <span style="font-size:13px;">🌐</span>
+      <select><option>全平台视图 · 28 个机构</option><option>星河科技 · TENANT-018</option><option>云杉零售 · TENANT-017</option><option>木棉教育 · TENANT-015</option></select>
+    </div>
+    <div class="alert-banner"><span class="pulse"></span> 3 个租户存在 SLA 风险 · 1 个待审核入驻</div>
+    <div class="topbar-right">
+      <span>王敏</span> <span class="role">超级管理员</span>
+      <span>·</span> <span>14:32</span>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="label">机构总数</div>
+      <div class="value">28</div>
+      <div class="delta" style="color:var(--success)">+3 本月</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">在线租户</div>
+      <div class="value">24 <span style="font-size:14px;color:var(--text-muted)">/ 28</span></div>
+      <div class="delta" style="color:var(--success)">85.7% 在线率</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">今日全平台会话</div>
+      <div class="value">18,426</div>
+      <div class="delta" style="color:var(--success)">↑ 12.8% 较昨日</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">全局 AI 解决率</div>
+      <div class="value">78.4<span style="font-size:16px">%</span></div>
+      <div class="delta" style="color:var(--success)">↑ 4.2% 本周</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">SLA 达成率</div>
+      <div class="value">96.8<span style="font-size:16px">%</span></div>
+      <div class="delta" style="color:var(--success)">高于目标 1.8%</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Left: Tenant List & Chart -->
+    <div style="display:flex;flex-direction:column;gap:16px;min-height:0;">
+      <!-- Chart -->
+      <div class="panel">
+        <div class="panel-header"><h3>📈 近 7 日全平台服务量</h3><span class="count">会话量与 AI 解决率趋势</span></div>
+        <div class="chart-canvas">
+          <svg viewBox="0 0 600 180" preserveAspectRatio="none">
+            <line x1="0" y1="36" x2="600" y2="36" stroke="#e2e8f0" stroke-width="1"/>
+            <line x1="0" y1="72" x2="600" y2="72" stroke="#e2e8f0" stroke-width="1"/>
+            <line x1="0" y1="108" x2="600" y2="108" stroke="#e2e8f0" stroke-width="1"/>
+            <line x1="0" y1="144" x2="600" y2="144" stroke="#e2e8f0" stroke-width="1"/>
+            <polyline points="20,130 100,110 180,120 260,90 340,100 420,70 500,50" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="20,130 100,110 180,120 260,90 340,100 420,70 500,50" fill="none" stroke="#3b82f6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.15"/>
+            <circle cx="20" cy="130" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="100" cy="110" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="180" cy="120" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="260" cy="90" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="340" cy="100" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="420" cy="70" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+            <circle cx="500" cy="50" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="chart-labels"><span>8/13</span><span>8/14</span><span>8/15</span><span>8/16</span><span>8/17</span><span>8/18</span><span>今天</span></div>
+      </div>
+
+      <!-- Tenant Table -->
+      <div class="panel" style="flex:1;min-height:0;">
+        <div class="panel-header"><h3>🏢 机构与租户健康排行</h3><span class="count">共 28 个租户</span></div>
+        <div style="overflow-y:auto;flex:1;">
+          <table class="tenant-table">
+            <thead>
+              <tr><th>机构 / ID</th><th>套餐</th><th>状态</th><th>坐席使用</th><th>今日会话</th><th>配额使用</th><th>最近活跃</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="name-cell">星河科技</div><div class="id-cell">TENANT-018 · 企业软件</div></td>
+                <td>企业版</td>
+                <td><span class="pill success">运行中</span></td>
+                <td>48 / 60</td>
+                <td>2,846</td>
+                <td><div class="progress"><div class="progress-bar ok"><i style="width:80%"></i></div><span class="progress-val">80%</span></div></td>
+                <td>刚刚</td>
+                <td><button style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;">进入</button></td>
+              </tr>
+              <tr>
+                <td><div class="name-cell">云杉零售</div><div class="id-cell">TENANT-017 · 零售电商</div></td>
+                <td>专业版</td>
+                <td><span class="pill success">运行中</span></td>
+                <td>24 / 30</td>
+                <td>1,920</td>
+                <td><div class="progress"><div class="progress-bar ok"><i style="width:72%"></i></div><span class="progress-val">72%</span></div></td>
+                <td>2 分钟前</td>
+                <td><button style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;">进入</button></td>
+              </tr>
+              <tr>
+                <td><div class="name-cell">远航物流</div><div class="id-cell">TENANT-016 · 物流服务</div></td>
+                <td>专业版</td>
+                <td><span class="pill warning">待审核</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td><div class="progress"><div class="progress-bar muted"><i style="width:0%"></i></div><span class="progress-val">—</span></div></td>
+                <td>今天 09:24</td>
+                <td><button style="font-size:11px;padding:4px 8px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;">审核</button></td>
+              </tr>
+              <tr>
+                <td><div class="name-cell">木棉教育</div><div class="id-cell">TENANT-015 · 在线教育</div></td>
+                <td>基础版</td>
+                <td><span class="pill success">运行中</span></td>
+                <td>12 / 15</td>
+                <td>638</td>
+                <td><div class="progress"><div class="progress-bar ok"><i style="width:61%"></i></div><span class="progress-val">61%</span></div></td>
+                <td>8 分钟前</td>
+                <td><button style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;">进入</button></td>
+              </tr>
+              <tr>
+                <td><div class="name-cell">北辰医疗</div><div class="id-cell">TENANT-014 · 医疗健康</div></td>
+                <td>企业版</td>
+                <td><span class="pill danger">已停用</span></td>
+                <td>0 / 40</td>
+                <td>—</td>
+                <td><div class="progress"><div class="progress-bar muted"><i style="width:18%"></i></div><span class="progress-val">18%</span></div></td>
+                <td>昨天 18:42</td>
+                <td><button style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;">查看</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <div class="sidebar">
+      <!-- Service Health -->
+      <div class="panel">
+        <div class="panel-header"><h3>🔧 平台服务健康</h3><span class="count">实时状态</span></div>
+        <div class="service-row"><span class="service-name">消息 API</span><span class="service-latency">128ms</span><span class="service-status ok">● 正常</span></div>
+        <div class="service-row"><span class="service-name">Socket 实时通道</span><span class="service-latency">46ms</span><span class="service-status ok">● 正常</span></div>
+        <div class="service-row"><span class="service-name">知识检索服务</span><span class="service-latency" style="color:var(--warning)">680ms</span><span class="service-status warn">● 延迟升高</span></div>
+        <div class="service-row"><span class="service-name">Webhook 投递</span><span class="service-latency">210ms</span><span class="service-status ok">● 正常</span></div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="panel">
+        <div class="panel-header"><h3>🚨 平台级告警</h3><span class="count">4 项</span></div>
+        <div class="alert-item">
+          <div class="alert-icon danger">!</div>
+          <div class="alert-content"><div class="title">远航物流待完成入驻审核</div><div class="desc">提交于今天 09:24 · 等待管理员审核</div></div>
+          <div class="alert-action"><button>审核</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon danger">!</div>
+          <div class="alert-content"><div class="title">北辰医疗租户已停用</div><div class="desc">配额待释放 · 40 个坐席席位闲置</div></div>
+          <div class="alert-action"><button>释放</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon warning">!</div>
+          <div class="alert-content"><div class="title">RAG 服务延迟升高</div><div class="desc">当前 680ms · 基线 200ms · 持续 12 分钟</div></div>
+          <div class="alert-action"><button>排查</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon info">i</div>
+          <div class="alert-content"><div class="title">本周安全审计完成</div><div class="desc">1,284 条审计日志已归档 · 3 个中等风险</div></div>
+          <div class="alert-action"><button style="background:transparent;color:var(--accent);">详情</button></div>
+        </div>
+      </div>
+
+      <!-- Model Usage -->
+      <div class="panel">
+        <div class="panel-header"><h3>🤖 模型用量</h3><span class="count">今日</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>DeepSeek V3 <span style="color:var(--text-muted)">(默认)</span></span><span style="color:var(--accent)">42.8M tokens</span></div><div class="channel-bar ok"><i style="width:85%"></i></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>通义千问 Max <span style="color:var(--text-muted)">(备用)</span></span><span style="color:var(--accent)">12.4M tokens</span></div><div class="channel-bar ok"><i style="width:35%"></i></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>星河私有模型 <span style="color:var(--text-muted)">(灰度)</span></span><span style="color:var(--accent)">3.2M tokens</span></div><div class="channel-bar ok"><i style="width:18%"></i></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

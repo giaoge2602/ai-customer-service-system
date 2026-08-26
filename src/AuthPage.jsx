@@ -1,22 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  fetchTenantOptions,
   loginWithDemoFallback,
   canCommitRequest,
-  registerAgent,
-  registerCustomer,
   registerPlatformAdmin,
-  registerTenant,
   resolveHome,
   roleMatchesPortal,
   validateAgentRegister,
-  validateCustomerRegister,
   validatePlatformAdminRegister,
   validateRecoveryEmail,
   validateTenantRegister,
 } from './auth'
-import { getPortalCategories, getPortalCopy } from './authPortal'
+import { getPortalCopy } from './authPortal'
+import { createApproval, validateInvite } from './approvalData.js'
 
 const AuthIcon = ({ name, size = 20 }) => {
   const paths = {
@@ -49,7 +45,7 @@ function AuthStory({ copy }) {
       <div className="auth-story-points">
         <span><AuthIcon name="spark" size={17}/><b>知识驱动回答</b><small>服务信息与业务配置统一管理</small></span>
         <span><AuthIcon name="route" size={17}/><b>角色边界清晰</b><small>不同入口只展示对应身份与权限</small></span>
-        <span><AuthIcon name="shield" size={17}/><b>企业级安全</b><small>RBAC、租户隔离与审计留痕</small></span>
+        <span><AuthIcon name="shield" size={17}/><b>企业级安全</b><small>RBAC、机构隔离与审计留痕</small></span>
       </div>
     </div>
     <div className="auth-insight" aria-label="系统运行概览">{copy.metrics.map(([value, label]) => <span key={label}><b>{value}</b><small>{label}</small></span>)}</div>
@@ -65,9 +61,8 @@ function PasswordInput({ label, value, onChange, placeholder, autoComplete = 'cu
   return <div className="auth-password-wrap"><input aria-label={label} type={visible ? 'text' : 'password'} value={value} onChange={onChange} placeholder={placeholder} autoComplete={autoComplete}/><button type="button" onClick={() => setVisible((current) => !current)} aria-label={visible ? '隐藏密码' : '显示密码'}><AuthIcon name="eye" size={17}/></button></div>
 }
 
-function LoginForm({ portal, mode, copy, categories, onAuthenticated }) {
+function LoginForm({ portal, mode, copy, onAuthenticated }) {
   const navigate = useNavigate()
-  const [identity, setIdentity] = useState(categories[0].key)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -76,7 +71,6 @@ function LoginForm({ portal, mode, copy, categories, onAuthenticated }) {
   const requestGenerationRef = useRef(0)
   const mountedRef = useRef(true)
   const portalRef = useRef(portal)
-  const selectedIdentity = categories.find((item) => item.key === identity) || categories[0]
 
   if (portalRef.current !== portal) {
     portalRef.current = portal
@@ -93,13 +87,12 @@ function LoginForm({ portal, mode, copy, categories, onAuthenticated }) {
 
   useEffect(() => {
     requestGenerationRef.current += 1
-    setIdentity(categories[0].key)
     setEmail('')
     setPassword('')
     setError('')
     setPortalMismatch(false)
     setLoading(false)
-  }, [portal, mode, categories])
+  }, [portal, mode])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -130,8 +123,7 @@ function LoginForm({ portal, mode, copy, categories, onAuthenticated }) {
   }
 
   return <>
-    <div className="auth-heading"><span>{selectedIdentity.loginLabel}</span><h2>{copy.loginTitle}</h2><p>{copy.loginDescription}</p></div>
-    <div className="auth-identity-tabs" role="tablist" aria-label="登录身份">{categories.map((item) => <button type="button" key={item.key} role="tab" aria-selected={identity === item.key} className={identity === item.key ? 'selected' : ''} onClick={() => setIdentity(item.key)}>{item.loginLabel}</button>)}</div>
+    <div className="auth-heading"><span>{portal === 'admin' ? '管理中心账号' : '服务中心账号'}</span><h2>{copy.loginTitle}</h2><p>{copy.loginDescription} 登录后将自动进入与你的账号权限匹配的工作区。</p></div>
     <form className="auth-form" onSubmit={submit} noValidate>
       {error && <div className="auth-form-alert" role="alert"><AuthIcon name="shield" size={16}/><span>{error}{portalMismatch && <> <Link to={copy.crossPortal.href}>{copy.crossPortal.label}</Link></>}</span></div>}
       <Field label="账号"><input aria-label="账号" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="请输入邮箱账号" autoComplete="username" required/></Field>
@@ -142,58 +134,41 @@ function LoginForm({ portal, mode, copy, categories, onAuthenticated }) {
   </>
 }
 
-function RegisterForm({ portal, mode, copy, categories }) {
-  const [category, setCategory] = useState(categories[0].key)
-  const [tenantOptions, setTenantOptions] = useState([])
-  const [values, setValues] = useState({ name: '', email: '', phone: '', source: '', tenantId: '', password: '', confirmPassword: '', agreed: false })
+const registrationTargets = {
+  agent: { role: 'agent', portal: 'service', title: '客服账号注册', description: '使用机构派发的邀请码提交入职申请，两级审核通过后激活。', requiresInvite: true, inviteType: 'agent' },
+  tenant: { role: 'tenant_admin', portal: 'admin', title: '机构入驻申请', description: '使用平台派发的邀请码提交入驻申请，审核通过后机构与账号一同激活。', requiresInvite: true, inviteType: 'tenant' },
+  platform: { role: 'platform_admin', portal: 'admin', title: '平台管理员初始化', description: '仅用于受控的平台初始化或邀请流程。', requiresInvite: false },
+}
+
+function RegisterForm({ portal, mode, copy, targetKey }) {
+  const target = registrationTargets[targetKey] || registrationTargets[portal === 'admin' ? 'tenant' : 'agent']
+  const role = target.role
+  const [values, setValues] = useState({ name: '', email: '', phone: '', source: '', tenantName: '', inviteCode: '', password: '', confirmPassword: '', agreed: false })
   const [errors, setErrors] = useState({})
   const [apiError, setApiError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(null)
   const mountedRef = useRef(true)
-  const tenantRequestGenerationRef = useRef(0)
   const registerRequestGenerationRef = useRef(0)
-  const selectedCategory = categories.find((item) => item.key === category) || categories[0]
 
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
-      tenantRequestGenerationRef.current += 1
       registerRequestGenerationRef.current += 1
     }
   }, [])
 
   useEffect(() => {
-    const requestGeneration = ++tenantRequestGenerationRef.current
-    fetchTenantOptions()
-      .then((items) => {
-        if (canCommitRequest(mountedRef.current, tenantRequestGenerationRef.current, requestGeneration)) setTenantOptions(Array.isArray(items) ? items : [])
-      })
-      .catch(() => {
-        if (canCommitRequest(mountedRef.current, tenantRequestGenerationRef.current, requestGeneration)) setTenantOptions([])
-      })
-    return () => { tenantRequestGenerationRef.current += 1 }
-  }, [portal, mode, category])
-
-  useEffect(() => {
     registerRequestGenerationRef.current += 1
-    setCategory(categories[0].key)
-    setValues({ name: '', email: '', phone: '', source: '', tenantId: '', password: '', confirmPassword: '', agreed: false })
+    setValues({ name: '', email: '', phone: '', source: '', tenantName: '', inviteCode: '', password: '', confirmPassword: '', agreed: false })
     setErrors({})
     setApiError('')
     setLoading(false)
     setSuccess(null)
-  }, [portal, mode, categories])
+  }, [portal, mode, targetKey])
   const update = (key, value) => setValues((current) => ({ ...current, [key]: value }))
-  const validate = () => category === 'platform' ? validatePlatformAdminRegister(values) : category === 'tenant' ? validateTenantRegister(values) : category === 'agent' ? validateAgentRegister(values) : validateCustomerRegister(values)
-  const selectCategory = (nextCategory) => {
-    registerRequestGenerationRef.current += 1
-    setCategory(nextCategory)
-    setErrors({})
-    setApiError('')
-    setLoading(false)
-  }
+  const validate = () => role === 'platform_admin' ? validatePlatformAdminRegister(values) : role === 'tenant_admin' ? validateTenantRegister(values) : validateAgentRegister(values)
 
   const submit = async (event) => {
     event.preventDefault()
@@ -201,39 +176,63 @@ function RegisterForm({ portal, mode, copy, categories }) {
     const nextErrors = validate()
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
+    // 邀请码有效性校验（存在、未使用、类型匹配、未过期）
+    const check = target.requiresInvite ? validateInvite(values.inviteCode, target.inviteType) : { ok: true }
+    if (!check.ok) {
+      setErrors({ inviteCode: check.reason })
+      return
+    }
     const requestGeneration = ++registerRequestGenerationRef.current
     setLoading(true)
     try {
       let result
-      if (category === 'platform') result = await registerPlatformAdmin({ name: values.name, email: values.email, password: values.password })
-      else if (category === 'tenant') result = await registerTenant({ tenantId: values.tenantId, name: values.name, email: values.email, password: values.password })
-      else if (category === 'agent') result = await registerAgent({ name: values.name, email: values.email, password: values.password, tenantId: values.tenantId })
-      else result = await registerCustomer({ name: values.name, email: values.email, password: values.password, phone: values.phone || undefined, source: values.source, tenantId: values.tenantId })
+      if (role === 'platform_admin') {
+        result = await registerPlatformAdmin({ name: values.name, email: values.email, password: values.password })
+      } else {
+        result = createApproval({
+          kind: role === 'tenant_admin' ? 'tenant' : 'agent',
+          name: values.name,
+          email: values.email,
+          phone: values.phone || '',
+          password: values.password,
+          tenantName: values.tenantName,
+          inviteCode: values.inviteCode,
+        })
+      }
       if (!canCommitRequest(mountedRef.current, registerRequestGenerationRef.current, requestGeneration)) return
-      setSuccess(`${selectedCategory.title}「${result.name}」注册成功，请登录`)
+      if (result && result.error) {
+        setApiError(result.error)
+        return
+      }
+      if (role === 'platform_admin') {
+        setSuccess(`平台管理员「${result.name}」初始化成功，请登录`)
+      } else {
+        setSuccess(role === 'tenant_admin'
+          ? `机构入驻申请「${values.tenantName}」已提交，请等待平台管理员审核。审核通过后，机构与管理员账号将一同激活。`
+          : '客服注册申请已提交，需机构管理员与平台管理员两级审核通过后，账号方可激活登录。')
+      }
     } catch (err) {
       if (!canCommitRequest(mountedRef.current, registerRequestGenerationRef.current, requestGeneration)) return
-      setApiError(err.message || '注册失败，请重试')
+      setApiError(err.message || '提交失败，请重试')
     } finally {
       if (canCommitRequest(mountedRef.current, registerRequestGenerationRef.current, requestGeneration)) setLoading(false)
     }
   }
 
-  if (success) return <div className="auth-success"><span><AuthIcon name="check" size={26}/></span><h2>注册成功</h2><p>{success}</p><Link className="auth-primary" to={copy.routes.login}>前往登录</Link></div>
+  if (success) return <div className="auth-success"><span><AuthIcon name="check" size={26}/></span><h2>{role === 'tenant_admin' ? '入驻申请已提交' : role === 'platform_admin' ? '初始化成功' : '注册申请已提交'}</h2><p>{success}</p><Link className="auth-primary" to={copy.routes.login}>返回登录</Link></div>
   return <>
-    <div className="auth-heading"><span>创建账号</span><h2>{copy.registerTitle}</h2><p>{copy.registerDescription}</p></div>
-    <div className="register-category-grid">{categories.map((item) => <button type="button" key={item.key} className={`register-category-card ${category === item.key ? 'selected' : ''}`} onClick={() => selectCategory(item.key)}><span className="register-category-icon"><AuthIcon name={item.icon} size={18}/></span><div><b>{item.title}</b><small>{item.description}</small></div><i className="register-category-check"><AuthIcon name="check" size={12}/></i></button>)}</div>
-    <div className="register-table-hint"><AuthIcon name="shield" size={13}/><span>数据将保存到 <b>{selectedCategory.table}</b></span></div>
+    <div className="auth-heading"><span>{target.title}</span><h2>{target.title}</h2><p>{target.description}</p></div>
+    <div className="register-target-hint"><AuthIcon name="shield" size={13}/><span>当前注册入口已固定为对应账号权限</span></div>
     <form className="auth-form register" onSubmit={submit} noValidate>
       {apiError && <div className="auth-form-alert" role="alert"><AuthIcon name="shield" size={16}/>{apiError}</div>}
-      {category !== 'platform' && <Field label="选择公司" error={errors.tenantId} hint="仅可选择已在本平台入驻的机构"><select aria-label="选择公司" className="auth-select" value={values.tenantId} onChange={(event) => update('tenantId', event.target.value)}><option value="">请选择所属公司</option>{tenantOptions.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}</select></Field>}
-      <div className="auth-field-grid"><Field label={category === 'tenant' || category === 'platform' ? '管理员姓名' : '姓名'} error={errors.name}><input aria-label="姓名" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="请输入真实姓名" autoComplete="name"/></Field><Field label="邮箱" error={errors.email}><input aria-label="邮箱" type="email" value={values.email} onChange={(event) => update('email', event.target.value)} placeholder="name@company.com" autoComplete="email"/></Field></div>
-      {category === 'customer' && <div className="auth-field-grid"><Field label="手机号" error={errors.phone}><input aria-label="手机号" value={values.phone} onChange={(event) => update('phone', event.target.value)} placeholder="选填"/></Field><Field label="来源渠道" error={errors.source}><select aria-label="来源渠道" className="auth-select" value={values.source} onChange={(event) => update('source', event.target.value)}><option value="">请选择</option><option value="微信">微信</option><option value="网页">网页</option><option value="企业微信">企业微信</option><option value="APP">APP</option><option value="电话">电话</option></select></Field></div>}
+      {role === 'tenant_admin' && <Field label="机构名称" error={errors.tenantName} hint="入驻审核通过后，将创建独立的机构运营空间"><input aria-label="机构名称" value={values.tenantName} onChange={(event) => update('tenantName', event.target.value)} placeholder="请输入机构全称" /></Field>}
+      <div className="auth-field-grid"><Field label={role === 'tenant_admin' || role === 'platform_admin' ? '管理员姓名' : '姓名'} error={errors.name}><input aria-label="姓名" value={values.name} onChange={(event) => update('name', event.target.value)} placeholder="请输入真实姓名" autoComplete="name"/></Field><Field label="邮箱" error={errors.email}><input aria-label="邮箱" type="email" value={values.email} onChange={(event) => update('email', event.target.value)} placeholder="name@company.com" autoComplete="email"/></Field></div>
+      {target.requiresInvite && <Field label="邀请码" error={errors.inviteCode} hint="由平台 / 机构管理员派发，一个邀请码仅可使用一次"><input aria-label="邀请码" value={values.inviteCode} onChange={(event) => update('inviteCode', event.target.value)} placeholder={role === 'tenant_admin' ? '请输入平台派发的机构邀请码' : '请输入机构派发的客服邀请码'} autoComplete="off"/></Field>}
       <Field label="设置密码" error={errors.password} hint="至少 8 位"><PasswordInput label="设置密码" value={values.password} onChange={(event) => update('password', event.target.value)} placeholder="请设置登录密码" autoComplete="new-password"/></Field>
       <Field label="确认密码" error={errors.confirmPassword}><PasswordInput label="确认密码" value={values.confirmPassword} onChange={(event) => update('confirmPassword', event.target.value)} placeholder="请再次输入密码" autoComplete="new-password"/></Field>
       <label className={`auth-agreement ${errors.agreed ? 'has-error' : ''}`}><input type="checkbox" checked={values.agreed} onChange={(event) => update('agreed', event.target.checked)}/><span>我已阅读并同意《服务协议》和《隐私政策》</span></label>
       {errors.agreed && <small className="auth-field-error agreement-error" role="alert">{errors.agreed}</small>}
-      <button className="auth-primary" type="submit" disabled={loading}>{loading ? '提交中...' : '注册'} {!loading && <AuthIcon name="arrow" size={17}/>}</button>
+      <button className="auth-primary" type="submit" disabled={loading}>{loading ? '提交中...' : role === 'tenant_admin' ? '提交入驻申请' : '提交注册申请'} {!loading && <AuthIcon name="arrow" size={17}/>}</button>
     </form>
     <p className="auth-switch">已有账号？<Link to={copy.routes.login}>返回登录</Link></p>
   </>
@@ -253,20 +252,19 @@ function RecoveryForm({ copy }) {
   return <><div className="auth-heading"><span>账号安全</span><h2>{copy.recoveryTitle}</h2><p>{copy.recoveryDescription}</p></div><form className="auth-form" onSubmit={submit} noValidate><Field label="工作邮箱" error={error}><input aria-label="工作邮箱" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" autoComplete="email"/></Field><button className="auth-primary" type="submit">发送重置邮件 <AuthIcon name="arrow" size={17}/></button></form><p className="auth-switch"><Link to={copy.routes.login}>返回登录</Link></p></>
 }
 
-export default function AuthPage({ portal = 'service', mode = 'login', onAuthenticated }) {
+export default function AuthPage({ portal = 'service', mode = 'login', registrationTarget = portal === 'admin' ? 'tenant' : 'agent', onAuthenticated }) {
   const copy = getPortalCopy(portal)
-  const categories = getPortalCategories(portal)
   return <main className={`auth-shell ${copy.accentClass}`}>
     <AuthStory copy={copy}/>
     <section className="auth-main">
       <div className="auth-mobile-brand"><Brand copy={copy}/></div>
       <div className={`auth-card ${mode === 'register' ? 'wide' : ''}`}>
-        {mode === 'login' && <LoginForm key={`${portal}-${mode}`} portal={portal} mode={mode} copy={copy} categories={categories} onAuthenticated={onAuthenticated}/>}
-        {mode === 'register' && <RegisterForm key={`${portal}-${mode}`} portal={portal} mode={mode} copy={copy} categories={categories}/>}
+        {mode === 'login' && <LoginForm key={`${portal}-${mode}`} portal={portal} mode={mode} copy={copy} onAuthenticated={onAuthenticated}/>}
+        {mode === 'register' && <RegisterForm key={`${portal}-${mode}-${registrationTarget}`} portal={portal} mode={mode} copy={copy} targetKey={registrationTarget}/>}
         {mode === 'recovery' && <RecoveryForm key={`${portal}-${mode}`} copy={copy}/>}
       </div>
       <Link className="auth-portal-switch" to={copy.crossPortal.href}>{copy.crossPortal.label} <AuthIcon name="arrow" size={14}/></Link>
-      <p className="auth-security"><AuthIcon name="shield" size={14}/> 安全加密传输 · 数据按租户隔离存储</p>
+      <p className="auth-security"><AuthIcon name="shield" size={14}/> 安全加密传输 · 数据按机构隔离存储</p>
     </section>
   </main>
 }

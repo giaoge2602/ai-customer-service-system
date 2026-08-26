@@ -12,15 +12,25 @@ function readAccessToken() {
 
 async function authRequest(path, options = {}) {
   const token = readAccessToken()
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-    ...options,
-  })
-  const body = await response.json()
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+      ...options,
+    })
+  } catch {
+    throw new Error('服务暂时不可用，请稍后重试')
+  }
+  let body = {}
+  try {
+    body = await response.json()
+  } catch {
+    throw new Error(response.ok ? '服务返回格式异常' : `请求失败 (${response.status})`)
+  }
   if (!response.ok) {
     throw new Error(body.message || `请求失败 (${response.status})`)
   }
@@ -46,7 +56,7 @@ export async function updateAgentStatus(id, status) {
   })
 }
 
-// ==================== 租户管理（F-002） ====================
+// ==================== 机构管理（F-002） ====================
 
 export async function fetchTenants(params = {}) {
   const query = new URLSearchParams()

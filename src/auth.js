@@ -1,3 +1,5 @@
+import { findApprovalByEmail, getUserByEmail } from './approvalData.js'
+
 const API_BASE = '/api/v1'
 const SERVICE_UNAVAILABLE_STATUSES = new Set([502, 503, 504])
 
@@ -19,8 +21,10 @@ async function apiRequest(path, options = {}) {
   try {
     body = await response.json()
   } catch {
+    const contentType = response.headers.get('content-type') || ''
+    const proxyUnavailable = response.status === 500 && !contentType.includes('application/json')
     const error = new Error(response.ok ? '服务返回格式异常' : `请求失败 (${response.status})`)
-    error.code = isServiceUnavailableResponse(response.status) ? 'SERVICE_UNAVAILABLE' : 'AUTH_REJECTED'
+    error.code = isServiceUnavailableResponse(response.status) || proxyUnavailable ? 'SERVICE_UNAVAILABLE' : 'AUTH_REJECTED'
     throw error
   }
   if (!response.ok) {
@@ -52,7 +56,7 @@ export async function registerAgent(payload) {
   })
 }
 
-/** 注册超级管理员（写入 user 表，无租户归属） */
+/** 注册超级管理员（写入 user 表，无机构归属） */
 export async function registerPlatformAdmin(payload) {
   return apiRequest('/auth/register/platform-admin', {
     method: 'POST',
@@ -108,11 +112,12 @@ export const demoAccounts = [
     name: '王敏',
     title: '超级管理员',
     email: 'admin@ai-service.demo',
-    description: '管理租户、模型、配额与全局安全策略',
+    description: '管理机构、模型、配额与全局安全策略',
   },
   {
     userId: 'USR-TENANT-001',
     tenantId: 'TENANT-018',
+    tenantName: '星河科技',
     role: 'tenant_admin',
     permissions: ['tenant:manage', 'service:operate'],
     name: '赵宁',
@@ -123,6 +128,7 @@ export const demoAccounts = [
   {
     userId: 'USR-AGENT-001',
     tenantId: 'TENANT-018',
+    tenantName: '星河科技',
     role: 'agent',
     permissions: ['conversation:handle', 'customer:read'],
     name: '李楠',
@@ -133,6 +139,7 @@ export const demoAccounts = [
   {
     userId: 'USR-CUSTOMER-001',
     tenantId: 'TENANT-018',
+    tenantName: '星河科技',
     role: 'customer',
     permissions: ['customer:consult'],
     name: '陈晨',
@@ -144,12 +151,37 @@ export const demoAccounts = [
 
 export function authenticateDemo(email, password) {
   const account = demoAccounts.find((item) => item.email === email.trim().toLowerCase())
-  if (!account || password !== DEMO_PASSWORD) {
-    return { ok: false, error: '账号或密码错误，请检查后重试' }
+  if (account) {
+    if (password !== DEMO_PASSWORD) {
+      return { ok: false, error: '账号或密码错误，请检查后重试' }
+    }
+    const { description: _description, ...session } = account
+    return { ok: true, session }
   }
 
-  const { description: _description, ...session } = account
-  return { ok: true, session }
+  // 审核通过后激活的注册账号（机构管理员 / 客服）
+  const user = getUserByEmail(email)
+  if (user) {
+    if (user.status !== 'active') {
+      return { ok: false, error: '账号尚未激活，请等待审核通过后登录' }
+    }
+    if (password !== user.password) {
+      return { ok: false, error: '账号或密码错误，请检查后重试' }
+    }
+    const { password: _password, status: _status, ...session } = user
+    return { ok: true, session }
+  }
+
+  // 已提交但尚未激活的注册申请
+  const approval = findApprovalByEmail(email)
+  if (approval) {
+    const error = approval.status === 'rejected'
+      ? '注册申请已被驳回，请联系管理员后重新申请'
+      : '账号尚未激活，请等待审核通过后登录'
+    return { ok: false, error }
+  }
+
+  return { ok: false, error: '账号或密码错误，请检查后重试' }
 }
 
 export async function loginWithDemoFallback(email, password, request = apiLogin) {
@@ -208,6 +240,8 @@ export function canAccessPath(role, pathname) {
   if (pathname.startsWith('/platform')) return role === 'platform_admin'
   if (pathname.startsWith('/organization')) return role === 'platform_admin' || role === 'tenant_admin'
   if (pathname.startsWith('/customer')) return role === 'customer'
+  if (pathname.startsWith('/workbench/customers')) return ['platform_admin', 'tenant_admin', 'agent'].includes(role)
+  if (pathname.startsWith('/workbench/tickets')) return ['platform_admin', 'tenant_admin', 'agent'].includes(role)
   if (['/workbench/knowledge', '/workbench/settings'].some((path) => pathname.startsWith(path))) {
     return role === 'platform_admin' || role === 'tenant_admin'
   }
@@ -251,19 +285,20 @@ export function validateAgentRegister(values) {
   const passwordError = validatePassword(values.password)
   if (passwordError) errors.password = passwordError
   if (values.confirmPassword !== values.password) errors.confirmPassword = '两次输入的密码不一致'
-  if (!values.tenantId.trim()) errors.tenantId = '请输入机构 ID'
+  if (!values.inviteCode.trim()) errors.inviteCode = '请输入邀请码'
   if (!values.agreed) errors.agreed = '请阅读并同意服务协议'
   return errors
 }
 
 export function validateTenantRegister(values) {
   const errors = {}
-  if (!values.tenantId.trim()) errors.tenantId = '请选择所属机构'
+  if (!values.tenantName.trim()) errors.tenantName = '请输入机构名称'
   if (!values.name.trim()) errors.name = '请输入管理员姓名'
   if (!/^\S+@\S+\.\S+$/.test(values.email.trim())) errors.email = '请输入有效的邮箱地址'
   const passwordError = validatePassword(values.password)
   if (passwordError) errors.password = passwordError
   if (values.confirmPassword !== values.password) errors.confirmPassword = '两次输入的密码不一致'
+  if (!values.inviteCode.trim()) errors.inviteCode = '请输入邀请码'
   if (!values.agreed) errors.agreed = '请阅读并同意服务协议'
   return errors
 }

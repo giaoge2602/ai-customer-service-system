@@ -6,13 +6,23 @@ import * as prototype from './prototype.js'
 test('maps workbench routes to the requested prototype area', () => {
   assert.equal(getWorkArea('/workbench/dashboard'), 'dashboard')
   assert.equal(getWorkArea('/workbench/knowledge'), 'knowledge')
+  assert.equal(getWorkArea('/workbench/tickets'), 'tickets')
+  assert.equal(getWorkArea('/workbench/customers'), 'customers')
   assert.equal(getWorkArea('/workbench/settings'), 'settings')
   assert.equal(getWorkArea('/workbench/CS-240819-018'), 'conversations')
 })
 
-test('agent workspace chrome shows conversations and dashboard only', () => {
+test('agent workspace chrome includes service resources with semantic icons', () => {
   const items = prototype.getAgentWorkspaceNav?.('agent')
-  assert.deepEqual(items?.map((item) => item.id), ['conversations', 'dashboard'])
+  assert.deepEqual(items?.map((item) => item.id), ['conversations', 'customers', 'dashboard', 'tickets'])
+  assert.equal(items.find((item) => item.id === 'conversations')?.icon, 'chat')
+  assert.equal(items.find((item) => item.id === 'customers')?.icon, 'users')
+  assert.equal(items.find((item) => item.id === 'tickets')?.path, '/workbench/tickets')
+})
+
+test('admins see knowledge, tickets, and settings while customers see no workspace nav', () => {
+  assert.deepEqual(prototype.getAgentWorkspaceNav?.('tenant_admin').map((item) => item.id), ['conversations', 'customers', 'dashboard', 'knowledge', 'tickets', 'settings'])
+  assert.deepEqual(prototype.getAgentWorkspaceNav?.('customer'), [])
 })
 
 test('moves the customer chat through the V1 service flow', () => {

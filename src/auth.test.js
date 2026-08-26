@@ -18,6 +18,8 @@ import {
   validateInvitation,
 } from './auth.js'
 
+import { createApproval, createInvite, updateApproval } from './approvalData.js'
+
 async function withFetch(fetchImplementation, run) {
   const originalFetch = globalThis.fetch
   globalThis.fetch = fetchImplementation
@@ -45,6 +47,13 @@ test('demo login never bypasses an explicit authentication rejection', async () 
 test('a real HTTP 500 login response never triggers the demo fallback', async () => {
   await withFetch(async () => new Response(JSON.stringify({ message: '认证处理异常' }), { status: 500, headers: { 'Content-Type': 'application/json' } }), async () => {
     await assert.rejects(() => loginWithDemoFallback('lina@xinghe.demo', 'Demo@2026'), /认证处理异常/)
+  })
+})
+
+test('a non-JSON HTTP 500 proxy response triggers the demo fallback', async () => {
+  await withFetch(async () => new Response('<!doctype html><title>Vite proxy error</title>', { status: 500, headers: { 'Content-Type': 'text/html' } }), async () => {
+    const session = await loginWithDemoFallback('customer@xinghe.demo', 'Demo@2026')
+    assert.equal(session.role, 'customer')
   })
 })
 
@@ -131,6 +140,7 @@ test('valid demo credentials create the tenant-scoped session for the matching a
     session: {
       userId: 'USR-TENANT-001',
       tenantId: 'TENANT-018',
+      tenantName: '星河科技',
       role: 'tenant_admin',
       permissions: ['tenant:manage', 'service:operate'],
       name: '赵宁',
@@ -164,6 +174,9 @@ test('role home and protected areas stay aligned with the PRD role boundary', ()
   assert.equal(canAccessPath('tenant_admin', '/organization/knowledge'), true)
   assert.equal(canAccessPath('platform_admin', '/workbench'), true)
   assert.equal(canAccessPath('agent', '/workbench/dashboard'), true)
+  assert.equal(canAccessPath('agent', '/workbench/tickets'), true)
+  assert.equal(canAccessPath('tenant_admin', '/workbench/tickets'), true)
+  assert.equal(canAccessPath('customer', '/workbench/tickets'), false)
   assert.equal(canAccessPath('agent', '/workbench/knowledge'), false)
   assert.equal(canAccessPath('agent', '/workbench/settings'), false)
   assert.equal(canAccessPath('tenant_admin', '/workbench/settings'), true)
@@ -216,4 +229,37 @@ test('invitation registration validates invite code, work email, and password st
 test('password recovery rejects malformed email and accepts a work email', () => {
   assert.equal(validateRecoveryEmail('not-an-email'), '请输入有效的工作邮箱')
   assert.equal(validateRecoveryEmail('agent@xinghe.demo'), '')
+})
+
+test('a registered agent cannot log in until both approval sides pass', () => {
+  const invite = createInvite({ type: 'agent', tenantId: 'TENANT-018', tenantName: '星河科技', issuedBy: '赵宁' })
+  const created = createApproval({ kind: 'agent', name: '测试客服', email: 'new.agent@xinghe.demo', password: 'Demo@2026', inviteCode: invite.code })
+  assert.ok(created.ok)
+
+  // 提交后未审核：不可登录
+  const before = authenticateDemo('new.agent@xinghe.demo', 'Demo@2026')
+  assert.equal(before.ok, false)
+  assert.ok(before.error.includes('尚未激活'))
+
+  // 机构端通过后，仍需平台端：仍不可登录
+  updateApproval(created.approval.id, { stage: 'org', decision: 'approved', reviewedBy: '赵宁' })
+  const middle = authenticateDemo('new.agent@xinghe.demo', 'Demo@2026')
+  assert.equal(middle.ok, false)
+
+  // 平台端通过：账号激活，可登录
+  updateApproval(created.approval.id, { stage: 'platform', decision: 'approved', reviewedBy: '王敏' })
+  const after = authenticateDemo('new.agent@xinghe.demo', 'Demo@2026')
+  assert.equal(after.ok, true)
+  assert.equal(after.session.role, 'agent')
+  assert.equal(after.session.tenantId, 'TENANT-018')
+  assert.equal(after.session.name, '测试客服')
+})
+
+test('a rejected registered request tells the user the application was declined', () => {
+  const invite = createInvite({ type: 'tenant', issuedBy: '王敏' })
+  const created = createApproval({ kind: 'tenant', tenantName: '被拒公司', name: '张三', email: 'zhangsan@rejected.demo', password: 'Demo@2026', inviteCode: invite.code })
+  updateApproval(created.approval.id, { stage: 'platform', decision: 'rejected', reviewedBy: '王敏' })
+  const result = authenticateDemo('zhangsan@rejected.demo', 'Demo@2026')
+  assert.equal(result.ok, false)
+  assert.ok(result.error.includes('驳回'))
 })

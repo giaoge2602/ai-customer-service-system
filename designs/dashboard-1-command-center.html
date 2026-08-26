@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案一 · 作战指挥室 — 机构管理员看板</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #0b0f17;
+    --surface: #121826;
+    --surface-2: #1a2235;
+    --border: #232d42;
+    --text: #e8edf5;
+    --text-muted: #8892a6;
+    --accent: #3b82f6;
+    --success: #22c55e;
+  --warning: #f59e0b;
+    --danger: #ef4444;
+    --purple: #a855f7;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .shell { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    gap: 16px; flex-wrap: wrap;
+  }
+  .tenant-switch { display: flex; align-items: center; gap: 8px; }
+  .tenant-switch select {
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .alert-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 20px;
+    background: rgba(239,68,68,0.15); color: #fca5a5;
+    font-size: 12px; font-weight: 500;
+  }
+  .alert-banner .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); }
+  .topbar-right .role { color: var(--text); font-weight: 500; }
+
+  /* ===== Metrics Row ===== */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 16px 20px; }
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; position: relative;
+  }
+  .metric-card .label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .metric-card .value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .metric-card .delta { font-size: 12px; margin-top: 2px; }
+  .metric-card .sparkline { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); opacity: 0.4; }
+  .metric-card.danger { border-color: rgba(239,68,68,0.3); }
+  .metric-card.danger .value { color: var(--danger); }
+
+  /* ===== Main Layout ===== */
+  .main { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; padding: 0 20px 20px; flex: 1; min-height: 0; }
+  
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .panel-header h3 { font-size: 13px; font-weight: 600; }
+  .panel-header .count { font-size: 11px; color: var(--text-muted); }
+
+  /* Queue Column */
+  .queue-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .queue-item {
+    background: var(--surface-2); border-radius: 10px; padding: 10px 12px;
+    border-left: 3px solid var(--border); cursor: pointer; transition: background 0.15s;
+  }
+  .queue-item:hover { background: #1e293b; }
+  .queue-item.danger { border-left-color: var(--danger); }
+  .queue-item.warning { border-left-color: var(--warning); }
+  .queue-item .row1 { display: flex; justify-content: space-between; align-items: center; }
+  .queue-item .name { font-size: 13px; font-weight: 500; }
+  .queue-item .sla { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .queue-item.danger .sla { color: var(--danger); }
+  .queue-item.warning .sla { color: var(--warning); }
+  .queue-item .preview { font-size: 11px; color: var(--text-muted); margin-top: 2px;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .queue-item .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(168,85,247,0.2); color: #c084fc; }
+
+  /* Center Column */
+  .center-col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .agent-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .agent-card {
+    background: var(--surface-2); border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .agent-card .head { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .avatar.online { background: #064e3b; color: #6ee7b7; }
+  .avatar.busy { background: #451a03; color: #fbbf24; }
+  .avatar.offline { background: #374151; color: #9ca3af; }
+  .agent-card .meta { font-size: 11px; color: var(--text-muted); }
+  .load-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .load-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+  .load-bar.high i { background: var(--warning); }
+  .load-bar.crit i { background: var(--danger); }
+  .agent-card .stats { display: flex; gap: 12px; font-size: 11px; }
+  .agent-card .stats span { color: var(--text-muted); }
+  .agent-card .stats b { color: var(--text); }
+
+  /* Alerts Panel */
+  .alert-list { display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
+  .alert-item { display: flex; gap: 10px; padding: 10px; background: var(--surface-2); border-radius: 8px; }
+  .alert-icon { flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .alert-icon.danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .alert-icon.warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .alert-icon.info { background: rgba(59,130,246,0.15); color: var(--accent); }
+  .alert-content { flex: 1; }
+  .alert-content .title { font-size: 12px; font-weight: 500; }
+  .alert-content .desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .alert-action { flex-shrink: 0; align-self: center; }
+  .alert-action button { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; }
+
+  /* Channel Status */
+  .channel-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .channel-row:last-child { border-bottom: none; }
+  .channel-name { font-size: 12px; width: 80px; }
+  .channel-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .channel-bar i { display: block; height: 100%; border-radius: 3px; }
+  .channel-bar.ok i { background: var(--success); }
+  .channel-bar.warn i { background: var(--warning); }
+  .channel-val { font-size: 12px; color: var(--text-muted); width: 50px; text-align: right; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="tenant-switch">
+      <span style="font-size:13px;">🏢</span>
+      <select><option>星河科技 · TENANT-018</option><option>云杉零售 · TENANT-017</option><option>木棉教育 · TENANT-015</option></select>
+    </div>
+    <div class="alert-banner"><span class="pulse"></span> 1 个会话已超时 · 2 个即将超时 · 排队 12 人</div>
+    <div class="topbar-right">
+      <span>王敏</span> <span class="role">机构管理员</span>
+      <span>·</span> <span>14:32</span>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric-card danger">
+      <div class="label">排队等待</div>
+      <div class="value">12</div>
+      <div class="delta" style="color:var(--danger)">↑ 3 个较 5 分钟前</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">在线客服</div>
+      <div class="value">36 <span style="font-size:14px;color:var(--text-muted)">/ 48</span></div>
+      <div class="delta" style="color:var(--success)">负载率 72%</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">今日会话</div>
+      <div class="value">2,846</div>
+      <div class="delta" style="color:var(--success)">↑ 12.6% 较昨日</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">AI 自助解决率</div>
+      <div class="value">82.6<span style="font-size:16px">%</span></div>
+      <div class="delta" style="color:var(--success)">↑ 5.8% 本周</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Left: Queue -->
+    <div class="panel">
+      <div class="panel-header"><h3>⚡ 实时排队</h3><span class="count">12 个会话</span></div>
+      <div class="queue-list">
+        <div class="queue-item danger">
+          <div class="row1"><span class="name">赵可欣</span><span class="sla">00:58</span></div>
+          <div class="preview">这个问题已经影响到我们的业务了！</div>
+          <div style="display:flex;gap:6px;margin-top:6px;"><span class="tag">紧急</span><span style="font-size:10px;color:var(--text-muted);">企业微信 · API延迟投诉</span></div>
+        </div>
+        <div class="queue-item warning">
+          <div class="row1"><span class="name">林晓雨</span><span class="sla">03:42</span></div>
+          <div class="preview">我想确认一下退款什么时候到账…</div>
+          <div style="display:flex;gap:6px;margin-top:6px;"><span class="tag" style="background:rgba(59,130,246,0.2);color:#93c5fd;">VIP</span><span style="font-size:10px;color:var(--text-muted);">微信 · 退款咨询</span></div>
+        </div>
+        <div class="queue-item">
+          <div class="row1"><span class="name">陈思远</span><span class="sla">11:20</span></div>
+          <div class="preview">我想导出上个月的会话记录。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Agent Status -->
+    <div class="center-col">
+      <div class="panel">
+        <div class="panel-header"><h3>👥 团队实时负载</h3><span class="count">36 人在线 · 数据每秒刷新</span></div>
+        <div class="agent-grid">
+          <div class="agent-card">
+            <div class="head"><div class="avatar online">李</div><div><div style="font-size:13px;font-weight:500;">李楠</div><div class="meta">售后支持 · VIP客服</div></div></div>
+            <div class="load-bar high"><i style="width:78%"></i></div>
+            <div class="stats"><span>接待 <b>8</b></span><span>排队 <b>2</b></span><span>首响 <b>38s</b></span><span>满意 <b>4.9</b></span></div>
+          </div>
+          <div class="agent-card">
+            <div class="head"><div class="avatar busy">张</div><div><div style="font-size:13px;font-weight:500;">张宁</div><div class="meta">技术支持 · 投诉处理</div></div></div>
+            <div class="load-bar crit"><i style="width:95%"></i></div>
+            <div class="stats"><span>接待 <b>12</b></span><span>排队 <b>3</b></span><span>首响 <b>51s</b></span><span>满意 <b>4.8</b></span></div>
+          </div>
+          <div class="agent-card">
+            <div class="head"><div class="avatar busy">陈</div><div><div style="font-size:13px;font-weight:500;">陈哲</div><div class="meta">售前咨询</div></div></div>
+            <div class="load-bar"><i style="width:55%"></i></div>
+            <div class="stats"><span>接待 <b>5</b></span><span>排队 <b>1</b></span><span>首响 <b>45s</b></span><span>满意 <b>4.7</b></span></div>
+          </div>
+          <div class="agent-card">
+            <div class="head"><div class="avatar offline">王</div><div><div style="font-size:13px;font-weight:500;">王悦</div><div class="meta">投诉升级</div></div></div>
+            <div class="load-bar"><i style="width:0%"></i></div>
+            <div class="stats"><span>接待 <b>0</b></span><span>排队 <b>0</b></span><span>首响 <b>—</b></span><span>满意 <b>4.9</b></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Knowledge + Channels -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;min-height:0;">
+        <div class="panel">
+          <div class="panel-header"><h3>📚 知识库命中</h3><span class="count">今日 91.4%</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>退款到账规则 v3.2</span><span style="color:var(--success)">94.2%</span></div><div class="channel-bar ok"><i style="width:94%"></i></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>企业版产品手册</span><span style="color:var(--success)">88.6%</span></div><div class="channel-bar ok"><i style="width:89%"></i></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>售后服务说明</span><span style="color:var(--warning)">审核中</span></div><div class="channel-bar warn"><i style="width:60%"></i></div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><h3>🔗 渠道健康</h3><span class="count">4 个渠道</span></div>
+          <div class="channel-row"><span class="channel-name">Web Widget</span><div class="channel-bar ok"><i style="width:98%"></i></div><span class="channel-val">1,286</span></div>
+          <div class="channel-row"><span class="channel-name">微信公众号</span><div class="channel-bar ok"><i style="width:95%"></i></div><span class="channel-val">824</span></div>
+          <div class="channel-row"><span class="channel-name">企业微信</span><div class="channel-bar ok"><i style="width:92%"></i></div><span class="channel-val">512</span></div>
+          <div class="channel-row"><span class="channel-name">Open API</span><div class="channel-bar warn"><i style="width:45%"></i></div><span class="channel-val">待配置</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Alerts -->
+    <div class="panel">
+      <div class="panel-header"><h3>🚨 需要关注</h3><span class="count">5 项</span></div>
+      <div class="alert-list">
+        <div class="alert-item">
+          <div class="alert-icon danger">!</div>
+          <div class="alert-content"><div class="title">会话 CS-240819-016 已超时</div><div class="desc">客户投诉 API 延迟，影响生产业务</div></div>
+          <div class="alert-action"><button>接管</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon warning">!</div>
+          <div class="alert-content"><div class="title">客服 张宁 负载过高</div><div class="desc">当前接待 12 会话 · 排队 3 人 · 建议分流</div></div>
+          <div class="alert-action"><button>分流</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon warning">!</div>
+          <div class="alert-content"><div class="title">2 篇知识文档待审核</div><div class="desc">售后服务说明、API 错误码结构化数据</div></div>
+          <div class="alert-action"><button>审核</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon info">i</div>
+          <div class="alert-content"><div class="title">SLA 达成率 96.8%</div><div class="desc">高于目标 1.8% · 本月累计 128 万次会话</div></div>
+          <div class="alert-action"><button style="background:transparent;color:var(--accent);">详情</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon info">★</div>
+          <div class="alert-content"><div class="title">客户满意度 4.72</div><div class="desc">基于 1,204 条评价 · 较上周 +0.1</div></div>
+          <div class="alert-action"><button style="background:transparent;color:var(--accent);">查看</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

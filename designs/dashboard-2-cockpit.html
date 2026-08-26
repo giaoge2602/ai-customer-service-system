@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案二 · 运营驾驶舱</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --purple: #8b5cf6;
+    --indigo: #6366f1;
+    --teal: #06b6d4;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .shell { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    gap: 16px; flex-wrap: wrap;
+  }
+  .tenant-switch { display: flex; align-items: center; gap: 8px; }
+  .tenant-switch select {
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  .alert-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 20px;
+    background: #fef2f2; color: var(--danger);
+    font-size: 12px; font-weight: 500;
+  }
+  .alert-banner .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); }
+  .topbar-right .role { color: var(--text); font-weight: 500; }
+
+  /* ===== Metrics Row ===== */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 20px 24px; }
+  .metric-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .metric-card .label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  .metric-card .value { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; }
+  .metric-card .delta { font-size: 12px; margin-top: 4px; }
+  .metric-card.danger { border-color: rgba(239,68,68,0.2); background: #fef2f2; }
+  .metric-card.danger .value { color: var(--danger); }
+
+  /* ===== Main Layout ===== */
+  .main { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 0 24px 24px; flex: 1; min-height: 0; }
+  
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    display: flex; flex-direction: column; min-height: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-header h3 { font-size: 14px; font-weight: 600; }
+  .panel-header .count { font-size: 11px; color: var(--text-muted); }
+
+  /* Chart Area */
+  .chart-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .chart-canvas { flex: 1; background: var(--surface-2); border-radius: 8px; position: relative; overflow: hidden; min-height: 180px; }
+  .chart-canvas svg { width: 100%; height: 100%; display: block; }
+  .chart-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+  /* Trend Metrics */
+  .trend-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .trend-item { background: var(--surface-2); border-radius: 8px; padding: 12px; }
+  .trend-item .label { font-size: 11px; color: var(--text-muted); }
+  .trend-item .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .trend-item .desc { font-size: 11px; margin-top: 2px; }
+
+  /* Right Sidebar */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+
+  /* Agent Summary */
+  .agent-summary { display: flex; flex-direction: column; gap: 8px; }
+  .agent-row { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--surface-2); border-radius: 8px; }
+  .agent-row .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+  .avatar.online { background: #dcfce7; color: #16a34a; }
+  .avatar.busy { background: #fef3c7; color: #d97706; }
+  .avatar.offline { background: #e2e8f0; color: #64748b; }
+  .agent-row .info { flex: 1; }
+  .agent-row .name { font-size: 13px; font-weight: 500; }
+  .agent-row .meta { font-size: 11px; color: var(--text-muted); }
+  .agent-row .stat { font-size: 12px; font-weight: 600; }
+  .agent-row .load { width: 50px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .agent-row .load i { display: block; height: 100%; border-radius: 2px; }
+  .agent-row .load.ok i { background: var(--success); }
+  .agent-row .load.warn i { background: var(--warning); }
+  .agent-row .load.crit i { background: var(--danger); }
+
+  /* Alerts */
+  .alert-item { display: flex; gap: 10px; padding: 10px; background: var(--surface-2); border-radius: 8px; margin-bottom: 8px; }
+  .alert-icon { flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .alert-icon.danger { background: #fef2f2; color: var(--danger); }
+  .alert-icon.warning { background: #fffbeb; color: var(--warning); }
+  .alert-icon.info { background: #eff6ff; color: var(--accent); }
+  .alert-content { flex: 1; }
+  .alert-content .title { font-size: 12px; font-weight: 500; }
+  .alert-content .desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .alert-action { flex-shrink: 0; align-self: center; }
+  .alert-action button { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; }
+
+  /* Channel Status */
+  .channel-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .channel-row:last-child { border-bottom: none; }
+  .channel-name { font-size: 12px; width: 80px; }
+  .channel-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .channel-bar i { display: block; height: 100%; border-radius: 3px; }
+  .channel-bar.ok i { background: var(--success); }
+  .channel-bar.warn i { background: var(--warning); }
+  .channel-val { font-size: 12px; color: var(--text-muted); width: 50px; text-align: right; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="tenant-switch">
+      <span style="font-size:13px;">🏢</span>
+      <select><option>星河科技 · TENANT-018</option><option>云杉零售 · TENANT-017</option><option>木棉教育 · TENANT-015</option></select>
+    </div>
+    <div class="alert-banner"><span class="pulse"></span> 1 个会话已超时 · 2 个即将超时 · 排队 12 人</div>
+    <div class="topbar-right">
+      <span>王敏</span> <span class="role">机构管理员</span>
+      <span>·</span> <span>14:32</span>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric-card danger">
+      <div class="label">排队等待</div>
+      <div class="value">12</div>
+      <div class="delta" style="color:var(--danger)">↑ 3 个较 5 分钟前</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">在线客服</div>
+      <div class="value">36 <span style="font-size:14px;color:var(--text-muted)">/ 48</span></div>
+      <div class="delta" style="color:var(--success)">负载率 72%</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">今日会话</div>
+      <div class="value">2,846</div>
+      <div class="delta" style="color:var(--success)">↑ 12.6% 较昨日</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">AI 自助解决率</div>
+      <div class="value">82.6<span style="font-size:16px">%</span></div>
+      <div class="delta" style="color:var(--success)">↑ 5.8% 本周</div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Left: Charts & Trends -->
+    <div class="panel chart-card">
+      <div class="panel-header"><h3>📈 近 7 日会话趋势</h3><span class="count">AI 接待 vs 人工接管</span></div>
+      <div class="chart-canvas">
+        <svg viewBox="0 0 600 200" preserveAspectRatio="none">
+          <!-- Grid lines -->
+          <line x1="0" y1="40" x2="600" y2="40" stroke="#e2e8f0" stroke-width="1"/>
+          <line x1="0" y1="80" x2="600" y2="80" stroke="#e2e8f0" stroke-width="1"/>
+          <line x1="0" y1="120" x2="600" y2="120" stroke="#e2e8f0" stroke-width="1"/>
+          <line x1="0" y1="160" x2="600" y2="160" stroke="#e2e8f0" stroke-width="1"/>
+          <!-- AI line -->
+          <polyline points="20,140 100,120 180,130 260,100 340,110 420,80 500,60" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="20,140 100,120 180,130 260,100 340,110 420,80 500,60" fill="none" stroke="#3b82f6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.15"/>
+          <!-- Human line -->
+          <polyline points="20,170 100,160 180,165 260,150 340,155 420,140 500,130" fill="none" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="20,170 100,160 180,165 260,150 340,155 420,140 500,130" fill="none" stroke="#8b5cf6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.15"/>
+          <!-- Dots -->
+          <circle cx="20" cy="140" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="100" cy="120" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="180" cy="130" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="260" cy="100" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="340" cy="110" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="420" cy="80" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="500" cy="60" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+          <circle cx="20" cy="170" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="100" cy="160" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="180" cy="165" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="260" cy="150" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="340" cy="155" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="420" cy="140" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+          <circle cx="500" cy="130" r="4" fill="#fff" stroke="#8b5cf6" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="chart-labels"><span>8/13</span><span>8/14</span><span>8/15</span><span>8/16</span><span>8/17</span><span>8/18</span><span>今天</span></div>
+      <div class="trend-row">
+        <div class="trend-item"><div class="label">AI 解决率</div><div class="value" style="color:var(--accent)">82.6%</div><div class="desc" style="color:var(--success)">↑ 5.8% 本周</div></div>
+        <div class="trend-item"><div class="label">SLA 达成率</div><div class="value" style="color:var(--success)">96.8%</div><div class="desc" style="color:var(--success)">高于目标 1.8%</div></div>
+        <div class="trend-item"><div class="label">客户满意度</div><div class="value" style="color:var(--warning)">4.72</div><div class="desc">基于 1,204 条评价</div></div>
+      </div>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <div class="sidebar">
+      <!-- Agent Summary -->
+      <div class="panel">
+        <div class="panel-header"><h3>👥 团队负载</h3><span class="count">36 / 48 在线</span></div>
+        <div class="agent-summary">
+          <div class="agent-row">
+            <div class="avatar online">李</div>
+            <div class="info"><div class="name">李楠</div><div class="meta">售后支持 · VIP客服</div></div>
+            <div class="load ok"><i style="width:78%"></i></div>
+            <div class="stat">8</div>
+          </div>
+          <div class="agent-row">
+            <div class="avatar busy">张</div>
+            <div class="info"><div class="name">张宁</div><div class="meta">技术支持 · 投诉处理</div></div>
+            <div class="load crit"><i style="width:95%"></i></div>
+            <div class="stat">12</div>
+          </div>
+          <div class="agent-row">
+            <div class="avatar busy">陈</div>
+            <div class="info"><div class="name">陈哲</div><div class="meta">售前咨询</div></div>
+            <div class="load ok"><i style="width:55%"></i></div>
+            <div class="stat">5</div>
+          </div>
+          <div class="agent-row">
+            <div class="avatar offline">王</div>
+            <div class="info"><div class="name">王悦</div><div class="meta">投诉升级</div></div>
+            <div class="load"><i style="width:0%"></i></div>
+            <div class="stat">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="panel">
+        <div class="panel-header"><h3>🚨 需要关注</h3><span class="count">5 项</span></div>
+        <div class="alert-item">
+          <div class="alert-icon danger">!</div>
+          <div class="alert-content"><div class="title">会话 CS-240819-016 已超时</div><div class="desc">客户投诉 API 延迟，影响生产业务</div></div>
+          <div class="alert-action"><button>接管</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon warning">!</div>
+          <div class="alert-content"><div class="title">客服 张宁 负载过高</div><div class="desc">当前接待 12 会话 · 排队 3 人 · 建议分流</div></div>
+          <div class="alert-action"><button>分流</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon warning">!</div>
+          <div class="alert-content"><div class="title">2 篇知识文档待审核</div><div class="desc">售后服务说明、API 错误码结构化数据</div></div>
+          <div class="alert-action"><button>审核</button></div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon info">i</div>
+          <div class="alert-content"><div class="title">SLA 达成率 96.8%</div><div class="desc">高于目标 1.8% · 本月累计 128 万次会话</div></div>
+          <div class="alert-action"><button style="background:transparent;color:var(--accent);">详情</button></div>
+        </div>
+      </div>
+
+      <!-- Channel Status -->
+      <div class="panel">
+        <div class="panel-header"><h3>🔗 渠道健康</h3><span class="count">4 个渠道</span></div>
+        <div class="channel-row"><span class="channel-name">Web Widget</span><div class="channel-bar ok"><i style="width:98%"></i></div><span class="channel-val">1,286</span></div>
+        <div class="channel-row"><span class="channel-name">微信公众号</span><div class="channel-bar ok"><i style="width:95%"></i></div><span class="channel-val">824</span></div>
+        <div class="channel-row"><span class="channel-name">企业微信</span><div class="channel-bar ok"><i style="width:92%"></i></div><span class="channel-val">512</span></div>
+        <div class="channel-row"><span class="channel-name">Open API</span><div class="channel-bar warn"><i style="width:45%"></i></div><span class="channel-val">待配置</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

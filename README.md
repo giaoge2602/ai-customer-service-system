@@ -20,12 +20,14 @@
 - **门户隔离**：客服/客户走 `service` 门户，平台/机构管理员走 `admin` 门户，两套品牌文案与注册入口相互独立，登录页可互相跳转
 - **RBAC 权限路由**：`ProtectedRoute` 守卫 + `canAccessPath` 路径级鉴权；`/platform` 仅超管、`/organization` 限管理员、`/customer/*` 限客户、`/workbench/knowledge` 与 `/workbench/settings` 限管理员
 - **后端优先 + 演示降级**：优先调用后端登录接口（`/api/v1/auth/login`），后端不可用时自动降级为本地演示账号（`loginWithDemoFallback`）
-- **四类注册**：客服坐席、客户、机构管理员、超级管理员各有独立注册接口与表单校验（密码强度、邮箱格式、机构 ID 等）
+- **邀请码 + 两级审核注册**：机构入驻需持有平台派发的机构邀请码，客服入职需持有机构派发的客服邀请码；注册申请提交后进入审核中心，客服申请需机构管理员与平台管理员**两端均审核通过**才激活，机构申请由平台管理员审核通过后创建机构并激活管理员账号，任一端驳回则申请作废并释放邀请码
 - **登录态管理**：会话与 Token 保存在 `sessionStorage`，刷新不丢失，按门户路由退出
 
 ### 1. 客服工作台（/workbench）
-- **会话接待**：实时会话列表（状态 / 渠道 / SLA 风险多维筛选 + 关键词搜索）、AI 置信度与知识引用展示、人工接管、AI 建议回复、快捷回复、SLA 监控、转接 / 结束 / 建工单
-- **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒
+- **会话接待**：实时会话列表（状态 / 渠道 / SLA 风险多维筛选 + 关键词搜索，**筛选条件写入 URL 可分享/刷新不丢**）、AI 置信度与知识引用展示、人工接管、AI 建议回复、快捷回复、**SLA 实时倒计时**（`SlaCountdown`）、转接 / 结束 / 建工单、空状态兜底（`EmptyState`）
+- **AI 一键接管**：聊天窗口头部「AI 接管」按钮，客服繁忙 / 下班 / 休息时段一键让 AI 实时接待（`aiService` 服务层：当前为本地模拟引擎，已预留后端代理与 OpenAI 兼容协议两种接入模式）
+- **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒、**分流接待队列**（队列类型 + 优先级 + 客服分配联动）
+- **客户目录（/workbench/customers）**：客户档案列表
 - **知识库（/workbench/knowledge）**：FAQ 与知识文档管理、命中率统计、未命中问题沉淀
 - **AI 与界面配置（/workbench/settings）**：非工作时间 AI 接管时段、欢迎语、品牌主题色、窗口形态配置，实时预览并可发布到客户入口
 
@@ -35,20 +37,26 @@
 - **会话流转**：欢迎 → 排队 → 接待中 → 已结束 → 评价（`transitionChat` 状态机），结束可提交星级评价
 
 ### 3. 平台管理中心（/platform）
-- **平台运营总览**：机构总数、在线租户、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态
+- **平台运营总览**：机构总数、在线租户、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态。内置**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览按钮，可一键进入全屏大屏查看今日实时、会话构成、Token 消耗、机构活跃度、订单达成率、客户满意度等板块）
+- **注册审核中心（/platform/approvals）**：机构入驻申请审核（通过后创建机构并激活管理员账号）、客服两级审核（机构端 + 平台端，两端通过才激活）、机构邀请码派发与撤销
 - **机构与租户**：租户生命周期管理（审核 / 启用 / 停用）、套餐与配额可视化（已封装 `api.js` 租户接口，可对接后端 F-002）
+- **会话监控（/platform/conversations、/organization/conversations）**：跨机构/本机构异常会话记录，追溯完整聊天内容
+- **告警中心（平台 /alerts）**：平台告警管理与异常事件处理
 - **AI 模型中心**：DeepSeek V3、通义千问 Max、私有化模型统一管理，支持设置默认模型
 - **全局配置 / 安全与审计 / 运维监控**：平台级参数、审计日志、核心服务健康度
 
 ### 4. 机构管理中心（/organization）
-- **机构运营总览**：今日会话、AI 解决率、SLA 达成率、满意度；实时服务概览与客服负载
+- **机构运营总览**：今日会话、AI 解决率、SLA 达成率、满意度；实时服务概览与客服负载。内置与超管一致的**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏按钮，可进入全屏大屏查看机构维度的今日实时、会话构成、Token 消耗、客服负载、客户满意度、风险告警等板块）
+- **客服审核中心（/organization/approvals）**：本机构客服入职申请审核（机构端通过后仍需平台端终审）、客服邀请码派发与撤销
 - **客服与组织**：客服账号管理（已封装 `api.js` 坐席接口，可对接后端 F-006）
 - **客户中心 / 知识库 / AI 路由策略 / 渠道接入 / 服务运营**：档案、知识文档、意图路由、渠道状态、服务健康指标
 
 ### 5. 设计文档与原型产出
 - `docs/原型设计/`：7 个可独立打开的 HTML 原型页（登录页、PC 客服工作台、客户 Web 入口、平台管理后台、租户运营后台等）
-- `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造）
-- `output/`：第一期文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，均为 md / html / docx 三态）
+- `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造、双客服调度计划）
+- `docs/frontend-improvements.md`：前端纯前端改进建议清单（P0/P1 分级）
+- `designs/`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局 3 个 HTML 稿）
+- `output/`：设计文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，md / html / docx 三态）及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结）
 - `AI智能客服系统 第一期产品思维导图.pdf`
 
 ## 技术栈
@@ -74,24 +82,30 @@ ai-customer-service-system/
 ├── .gitignore                  # Git 忽略规则
 ├── docs/                       # 设计文档与 HTML 原型
 │   ├── 原型设计/               # 7 个可独立打开的原型页面
-│   └── superpowers/            # 设计规格（specs）与实施计划（plans）
-├── output/                     # 第一期文档交付物（md / html / docx）
+│   ├── superpowers/            # 设计规格（specs）与实施计划（plans）
+│   └── frontend-improvements.md # 前端改进建议清单（P0/P1 分级）
+├── designs/                    # 运营大屏视觉设计稿（3 个 HTML）
+├── output/                     # 文档交付物与迭代说明（md / html / docx）
 └── src/
     ├── main.jsx                # 应用入口：挂载 React、注册路由、引入全局样式
     ├── App.jsx                 # 路由编排 + 受保护路由 + 客服工作台（三栏布局）
     ├── AuthPage.jsx            # 认证页（双门户：登录 / 注册 / 找回密码）
     ├── authPortal.js           # 双门户文案与角色分类配置
     ├── auth.js                 # 认证逻辑（后端 API 调用、演示降级、RBAC、表单校验）
+    ├── approvalData.js         # 审核数据层（邀请码 / 注册申请 / 激活账号，localStorage 持久化）
     ├── api.js                  # 业务 API 封装（坐席 F-006、租户 F-002，Bearer Token）
+    ├── aiService.js            # AI 一键接管服务层（本地模拟 / 后端代理 / OpenAI 兼容三模式）
+    ├── workbenchData.js        # 工作台数据层（会话种子数据 / 客服团队队列 / 分配联动）
     ├── AgentWorkspaceShell.jsx # 客服工作区外壳（角色感知导航栏）
     ├── ServiceWorkspace.jsx    # 客服看板 / 知识库 / 配置 + 客户聊天窗口
     ├── prototype.js            # 原型逻辑（工作区映射、聊天状态机、服务模式、配置持久化）
-    ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式）
+    ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式 + 实时大屏 + 会话监控 + 告警）
     ├── adminData.js            # Mock 数据（租户、模型、审计、客服、客户、知识库、渠道、路由规则）
-    ├── auth.test.js            # 认证逻辑单元测试
-    ├── authPortal.test.js      # 双门户配置单元测试
-    ├── prototype.test.js       # 原型逻辑单元测试
-    └── *.css                   # 各模块样式（styles / admin / auth / polish / prototype）
+    ├── components/             # 拆分组件（AgentList 客服列表 / ApprovalCenter 审核中心）
+    ├── EmptyState.jsx          # 通用空状态组件
+    ├── SlaCountdown.jsx        # SLA 实时倒计时组件
+    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / workbenchData）
+    └── *.css                   # 各模块样式（styles / admin / auth / approval / polish / prototype / dashboard）
 ```
 
 ## 模块代码说明
@@ -100,15 +114,39 @@ ai-customer-service-system/
 挂载 React 应用，包裹 `BrowserRouter`，引入全部全局样式（含认证页与原型样式）。
 
 ### src/App.jsx — 路由编排 + 客服工作台
-- **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由；`/customer/chat` 客户聊天；`/workbench*` 客服工作区；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
+- **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由（注册按角色细分：`/service/register/agent`、`/admin/register/tenant`、`/admin/register/platform-admin`）；`/customer/chat` 客户聊天；`/workbench*` 客服工作区（含 `/workbench/customers` 客户目录）；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
 - **工作区路由分流**：`WorkbenchRoute` 通过 `getWorkArea()` 判断 `/workbench` 下的子区域（会话 / 看板 / 知识库 / 配置），非会话区域渲染 `ServiceWorkspace`
-- **客服工作台三栏布局**：会话列表（筛选 + 搜索）、消息工作区（SLA 时钟、AI 接管横幅、消息流、AI 建议、快捷回复）、客户上下文侧栏（客户档案、接管摘要、知识引用、备注工单）
+- **客服工作台三栏布局**：会话列表（筛选 + 搜索，**条件同步 URL** 可刷新保持）、消息工作区（SLA 实时倒计时、AI 接管横幅、AI 一键接管、消息流、AI 建议、快捷回复）、客户上下文侧栏（客户档案、接管摘要、知识引用、备注工单）
+- 会话数据来自 `workbenchData.js`，AI 接管逻辑来自 `aiService.js`
 
 ### src/auth.js — 认证与权限核心
 - **后端 API 层**：`apiRequest` 统一封装（错误码映射、服务不可用识别）、`apiLogin`、`registerAgent` / `registerPlatformAdmin` / `registerTenant` / `registerCustomer`、`fetchTenantOptions`
-- **演示降级**：`loginWithDemoFallback` 在后端不可用时用 `demoAccounts`（4 角色）完成登录
+- **演示降级**：`loginWithDemoFallback` 在后端不可用时用 `demoAccounts`（4 角色）完成登录；审核激活的注册账号（机构管理员 / 客服）同样可登录，未激活或被驳回的申请会提示对应状态
 - **RBAC**：`resolveHome` / `resolveLoginPath` / `resolveLogoutPath` / `canAccessPath` / `roleMatchesPortal`
-- **校验**：`validatePassword`、四类注册表单校验、`validateInvitation`、`validateRecoveryEmail`
+- **校验**：`validatePassword`、四类注册表单校验（邀请码必填）、`validateInvitation`、`validateRecoveryEmail`
+
+### src/approvalData.js — 审核数据层
+模拟后端三张表（邀请码 / 注册申请 / 激活账号），localStorage 持久化：
+- **邀请码**：平台派发机构邀请码（`T-INV-*`）、机构派发客服邀请码（`A-INV-*`，绑定机构），支持撤销与一次性使用
+- **注册申请**：提交申请即消耗邀请码；机构申请仅平台端审核，客服申请需机构端 + 平台端两级审核，任一端驳回释放邀请码
+- **激活账号**：两端均通过后创建用户（机构管理员 / 客服）并写入用户表，登录时校验激活状态
+
+### src/aiService.js — AI 一键接管服务层
+为会话工作台提供「AI 接管」能力：
+- `AI_TAKEOVER` 配置：总开关 + 三种 provider（`local-mock` 本地模拟引擎 / `backend-proxy` 走 `/api/v1/ai/chat` 后端代理 / `openai-compatible` 直连 OpenAI 兼容协议）
+- `requestAiReply`：根据接管摘要、队列类型、优先级生成贴合上下文回复，模拟延迟可配
+- `buildAiSystemNote`：接管触发原因（繁忙 / 非工作时间 / 休息 / 过载）→ 客户可见的系统提示文案
+
+### src/workbenchData.js — 工作台数据层
+- `conversationsSeed`：会话种子数据（从 App.jsx 抽出，含 7 条会话）
+- `getConversationAssignment`：会话 → 客服分配映射
+- 客服团队队列选项模型：用于「团队工作负载 ↔ 分流接待队列」联调（队列类型 / 优先级 / 客服分配）
+
+### src/components/ApprovalCenter.jsx — 注册审核中心
+管理后台的审核界面，`mode` 区分超管 / 机构管理员两套视图：
+- 超管：机构入驻审核、客服两级审核（平台端操作）、机构邀请码派发与撤销
+- 机构管理员：本机构客服注册审核（机构端操作）、客服邀请码派发与撤销
+- 客服申请表格同时展示两端审核状态与“审核流程”指示条，终态一目了然
 
 ### src/AuthPage.jsx — 双门户认证页
 根据 `portal` 属性读取 `authPortal.js` 的文案与角色分类，渲染服务端（客服/客户）或管理端（平台/机构管理员）的登录 / 注册 / 找回密码表单；注册按角色分流到对应表单。
@@ -132,18 +170,31 @@ ai-customer-service-system/
 角色感知的左侧导航（会话 / 看板 / 知识库 / 配置），顶栏展示登录人与退出登录。
 
 ### src/AdminConsole.jsx — 管理控制台
-`mode` 区分平台 / 机构两套导航；`PlatformContent`（租户、模型、审计、监控）、`OrganizationContent`（客服、客户、知识库、路由、渠道）；运营总览指标卡、趋势图、待办；通用表格 / 标签 / 弹窗组件。
+`mode` 区分平台 / 机构两套导航：
+- `PlatformContent`：审核中心、机构列表（编辑）、模型、会话监控、告警中心、审计、监控、配置
+- `OrganizationContent`：审核中心、客服与组织（`AgentList` 组件 + 批量操作）、客户、知识库、路由策略、渠道、会话监控、运营
+- 两端总览内置 **LiveDashboard 实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览）
+- 通用表格 / 标签 / 弹窗 / 空状态组件
 
 ### src/adminData.js — Mock 数据层
 集中管理演示数据：平台指标、机构指标、租户、模型、审计、服务监控、客服、客户、知识库、渠道、路由规则。
 
+### src/components/AgentList.jsx — 客服列表组件
+从 AdminConsole 拆分的自包含客服列表（机构 / 平台复用），支持多选批量操作、状态切换、空状态兜底。
+
+### src/EmptyState.jsx / src/SlaCountdown.jsx — 通用组件
+- `EmptyState`：列表 / 搜索结果为空时的统一占位
+- `SlaCountdown`：SLA 剩余时间实时倒计时，按风险档位变色
+
 ### 测试（src/*.test.js）
-`auth.test.js`（认证 / RBAC / 校验）、`authPortal.test.js`（门户配置）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化），共 **29 个用例**，`npm test` 全绿。
+`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / 两级审核状态机 / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`workbenchData.test.js`（分配映射 / 团队队列），共 **49 个用例**，`npm test` 全绿。
 
 ### docs/ 与 output/ — 文档与原型
 - `docs/原型设计/*.html`：7 个可独立打开的高保真原型页
-- `docs/superpowers/`：后端 MVP 与双前端认证的设计规格（specs）和实施计划（plans）
-- `output/`：第一期五份设计文档（产品思维导图、详细设计、原型设计、简化版、技术选型）的 md / html / docx 交付态
+- `docs/superpowers/`：后端 MVP、双前端认证、双客服调度的设计规格（specs）和实施计划（plans）
+- `docs/frontend-improvements.md`：前端改进建议清单（P0 / P1 分级，只做纯前端可独立完成项）
+- `designs/*.html`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局）
+- `output/`：第一期设计文档交付态及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结）
 
 ## 快速开始
 
@@ -154,7 +205,7 @@ npm install
 # 启动开发服务器（默认 http://localhost:5173）
 npm run dev
 
-# 运行单元测试（29 个用例）
+# 运行单元测试（49 个用例）
 npm test
 
 # 生产构建
