@@ -111,7 +111,7 @@ ai-customer-service-system/
 ## 模块代码说明
 
 ### src/main.jsx — 应用入口
-挂载 React 应用，包裹 `BrowserRouter`，引入全部全局样式（含认证页与原型样式）。
+挂载 React 应用，包裹 `HashRouter`（适配 Gitee Pages 子路径部署），引入全部全局样式（含认证页与原型样式）。
 
 ### src/App.jsx — 路由编排 + 客服工作台
 - **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由（注册按角色细分：`/service/register/agent`、`/admin/register/tenant`、`/admin/register/platform-admin`）；`/customer/chat` 客户聊天；`/workbench*` 客服工作区（含 `/workbench/customers` 客户目录）；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
@@ -214,6 +214,28 @@ npm run build
 # 预览生产构建产物
 npm run preview
 ```
+
+### 发布到 Gitee Pages
+
+项目使用 `HashRouter`，适合部署到 Gitee Pages 的仓库子路径；刷新 `#/service/login`、`#/organization/overview` 等页面不会 404。首次发布前：
+
+1. 在 Gitee 创建一个专门存放构建产物的空仓库，例如 `ai-customer-service-pages`。
+2. **Windows PowerShell 推荐执行 PowerShell 脚本**（避免 WSL Bash 误用 Linux 版依赖）：
+
+```powershell
+.\deploy-pages.ps1 "https://gitee.com/silver125/ai-customer-service-pages.git"
+```
+
+如果 PowerShell 提示禁止执行脚本，只需对当前窗口临时放开权限：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\deploy-pages.ps1 "https://gitee.com/silver125/ai-customer-service-pages.git"
+```
+
+脚本会自动执行 `npm run build`、克隆或更新项目同级目录的 `..\ai-customer-service-pages`、同步 `dist\` 并推送到 Gitee。然后在 Gitee 仓库的「服务 → Gitee Pages」中选择 `master` 分支、根目录 `/`，点击「启动」或「更新」。以后更新只需重新执行上面的 PowerShell 命令。PowerShell 脚本使用 ASCII 输出，兼容 Windows PowerShell 5.1；若本地已安装 PowerShell 7，也可以使用 `pwsh -File .\deploy-pages.ps1 -PagesRepoUrl ...`。
+
+Git Bash 用户可以执行 `bash deploy-pages.sh "https://gitee.com/你的用户名/ai-customer-service-pages.git"`；但不要从 WSL Bash 复用 Windows 的 `node_modules`，否则可能出现 Rollup 原生依赖不匹配。发布后的访问地址类似 `https://你的用户名.gitee.io/ai-customer-service-pages/#/service/login`。
 
 ### 一键启动（Windows，含后端）
 
