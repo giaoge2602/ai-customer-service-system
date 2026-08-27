@@ -1,7 +1,7 @@
 import { findApprovalByEmail, getUserByEmail } from './approvalData.js'
 
 const API_BASE = '/api/v1'
-const SERVICE_UNAVAILABLE_STATUSES = new Set([502, 503, 504])
+const SERVICE_UNAVAILABLE_STATUSES = new Set([404, 405, 502, 503, 504])
 
 // ==================== 后端 API 调用 ====================
 
@@ -21,10 +21,9 @@ async function apiRequest(path, options = {}) {
   try {
     body = await response.json()
   } catch {
-    const contentType = response.headers.get('content-type') || ''
-    const proxyUnavailable = response.status === 500 && !contentType.includes('application/json')
-    const error = new Error(response.ok ? '服务返回格式异常' : `请求失败 (${response.status})`)
-    error.code = isServiceUnavailableResponse(response.status) || proxyUnavailable ? 'SERVICE_UNAVAILABLE' : 'AUTH_REJECTED'
+    // 响应不是 JSON（例如静态托管返回 HTML 的 404/405），说明根本没有后端 → 降级
+    const error = new Error('服务暂时不可用，请稍后重试')
+    error.code = 'SERVICE_UNAVAILABLE'
     throw error
   }
   if (!response.ok) {
