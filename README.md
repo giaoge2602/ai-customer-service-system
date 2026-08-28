@@ -26,18 +26,21 @@
 ### 1. 客服工作台（/workbench）
 - **会话接待**：实时会话列表（状态 / 渠道 / SLA 风险多维筛选 + 关键词搜索，**筛选条件写入 URL 可分享/刷新不丢**）、AI 置信度与知识引用展示、人工接管、AI 建议回复、快捷回复、**SLA 实时倒计时**（`SlaCountdown`）、转接 / 结束 / 建工单、空状态兜底（`EmptyState`）
 - **AI 一键接管**：聊天窗口头部「AI 接管」按钮，客服繁忙 / 下班 / 休息时段一键让 AI 实时接待（`aiService` 服务层：当前为本地模拟引擎，已预留后端代理与 OpenAI 兼容协议两种接入模式）
-- **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒、**分流接待队列**（队列类型 + 优先级 + 客服分配联动）
-- **客户目录（/workbench/customers）**：客户档案列表
+- **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒、**分流接待队列**（队列类型 + 优先级 + 客服分配联动）、**看板洞察指标**（机构/客服/渠道占比、AI 处理率、对比分析，`dashboardInsights`）
+- **客户目录（/workbench/customers）**：客户档案列表（`CustomerCenter` 组件）
+- **服务日志（/workbench/service-logs）**：客服操作与系统事件日志视图（`LogsView`）
 - **知识库（/workbench/knowledge）**：FAQ 与知识文档管理、命中率统计、未命中问题沉淀
 - **AI 与界面配置（/workbench/settings）**：非工作时间 AI 接管时段、欢迎语、品牌主题色、窗口形态配置，实时预览并可发布到客户入口
 
-### 2. 客户服务入口（/customer/chat）
-- **独立聊天窗口**：客户登录后发起咨询，支持常见问题快捷提问
+### 2. 客户服务入口（/customer/chat、/visitor/chat）
+- **登录客户聊天窗口**：客户登录后发起咨询，支持常见问题快捷提问
+- **免登录访客聊天（/visitor/chat）**：面向第三方小程序 / H5 / 网页的**客户客服窗口对接**——客户免注册、打开即聊；`chatClient` SDK 提供独立的访客会话（localStorage 独立 key，不覆盖坐席/管理员登录态）
+- **多端对话客户端 SDK**：`chatClient.js`（访客会话 + REST + Realtime 封装）、`conversationApi.js`（会话 REST：建/恢复、消息、DTO 归一化）、`conversationRealtime.js`（Socket.IO 实时：会话创建/接管/分配/结束、消息收发/已读、评价事件，去重 + 断线重连）
 - **AI / 人工模式切换**：工作时段人工优先，非工作时间由 AI 基于企业知识库接待（`resolveServiceMode` 按时间自动判定）
 - **会话流转**：欢迎 → 排队 → 接待中 → 已结束 → 评价（`transitionChat` 状态机），结束可提交星级评价
 
 ### 3. 平台管理中心（/platform）
-- **平台运营总览**：机构总数、在线租户、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态。内置**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览按钮，可一键进入全屏大屏查看今日实时、会话构成、Token 消耗、机构活跃度、订单达成率、客户满意度等板块）
+- **平台运营总览**：机构总数、活跃机构、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态。内置**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览按钮，可一键进入全屏大屏查看今日实时、会话构成、Token 消耗、机构活跃度、订单达成率、客户满意度等板块）
 - **注册审核中心（/platform/approvals）**：机构入驻申请审核（通过后创建机构并激活管理员账号）、客服两级审核（机构端 + 平台端，两端通过才激活）、机构邀请码派发与撤销
 - **机构与租户**：租户生命周期管理（审核 / 启用 / 停用）、套餐与配额可视化（已封装 `api.js` 租户接口，可对接后端 F-002）
 - **会话监控（/platform/conversations、/organization/conversations）**：跨机构/本机构异常会话记录，追溯完整聊天内容
@@ -53,10 +56,11 @@
 
 ### 5. 设计文档与原型产出
 - `docs/原型设计/`：7 个可独立打开的 HTML 原型页（登录页、PC 客服工作台、客户 Web 入口、平台管理后台、租户运营后台等）
-- `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造、双客服调度计划）
+- `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造、双客服调度计划、**人工会话闭环设计/规划**）
 - `docs/frontend-improvements.md`：前端纯前端改进建议清单（P0/P1 分级）
+- `docs/client-integration.md`：**客户多端对接待办接口接入说明**（访客会话、REST + Socket.IO 实时对账）
 - `designs/`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局 3 个 HTML 稿）
-- `output/`：设计文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，md / html / docx 三态）及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结）
+- `output/`：设计文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，md / html / docx 三态）及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结、**客服会话处理流程图**）
 - `AI智能客服系统 第一期产品思维导图.pdf`
 
 ## 技术栈
@@ -67,6 +71,7 @@
 | 路由 | react-router-dom | ^7.9.5 |
 | 构建工具 | Vite | ^7.1.7 |
 | 编译插件 | @vitejs/plugin-react-swc | ^4.1.0 |
+| 实时通信 | socket.io-client | ^4.8.3 |
 | 测试框架 | Node 内置 node:test | Node 22+ |
 | 后端（可选） | NestJS（MVP，位于 `.worktrees/backend-mvp`） | — |
 | 开发语言 | JavaScript (JSX) | ES Module |
@@ -83,7 +88,8 @@ ai-customer-service-system/
 ├── docs/                       # 设计文档与 HTML 原型
 │   ├── 原型设计/               # 7 个可独立打开的原型页面
 │   ├── superpowers/            # 设计规格（specs）与实施计划（plans）
-│   └── frontend-improvements.md # 前端改进建议清单（P0/P1 分级）
+│   ├── frontend-improvements.md # 前端改进建议清单（P0/P1 分级）
+│   └── client-integration.md   # 客户多端对接待办接口接入说明
 ├── designs/                    # 运营大屏视觉设计稿（3 个 HTML）
 ├── output/                     # 文档交付物与迭代说明（md / html / docx）
 └── src/
@@ -96,16 +102,21 @@ ai-customer-service-system/
     ├── api.js                  # 业务 API 封装（坐席 F-006、租户 F-002，Bearer Token）
     ├── aiService.js            # AI 一键接管服务层（本地模拟 / 后端代理 / OpenAI 兼容三模式）
     ├── workbenchData.js        # 工作台数据层（会话种子数据 / 客服团队队列 / 分配联动）
+    ├── chatClient.js           # 免登录访客对话客户端 SDK（独立访客会话 + REST + Realtime）
+    ├── conversationApi.js      # 会话 REST API（建/恢复、消息、DTO 归一化）
+    ├── conversationRealtime.js # 会话实时层（Socket.IO 事件、去重、断线重连）
+    ├── dashboardInsights.js    # 看板洞察指标（机构/客服/渠道占比、AI 处理率）
     ├── AgentWorkspaceShell.jsx # 客服工作区外壳（角色感知导航栏）
     ├── ServiceWorkspace.jsx    # 客服看板 / 知识库 / 配置 + 客户聊天窗口
     ├── prototype.js            # 原型逻辑（工作区映射、聊天状态机、服务模式、配置持久化）
     ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式 + 实时大屏 + 会话监控 + 告警）
     ├── adminData.js            # Mock 数据（租户、模型、审计、客服、客户、知识库、渠道、路由规则）
-    ├── components/             # 拆分组件（AgentList 客服列表 / ApprovalCenter 审核中心）
+    ├── components/             # 拆分组件（AgentList / ApprovalCenter / CustomerCenter / LogsView）
+    ├── chat/                   # 客户聊天 Widget（CustomerChatWidget + 样式）
     ├── EmptyState.jsx          # 通用空状态组件
     ├── SlaCountdown.jsx        # SLA 实时倒计时组件
-    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / workbenchData）
-    └── *.css                   # 各模块样式（styles / admin / auth / approval / polish / prototype / dashboard）
+    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / workbenchData / chatClient / conversationApi / conversationRealtime / dashboardInsights）
+    └── *.css                   # 各模块样式（styles / admin / auth / approval / polish / prototype / dashboard / logs / customer-center / chat-widget）
 ```
 
 ## 模块代码说明
@@ -114,7 +125,7 @@ ai-customer-service-system/
 挂载 React 应用，包裹 `HashRouter`（适配 Gitee Pages 子路径部署），引入全部全局样式（含认证页与原型样式）。
 
 ### src/App.jsx — 路由编排 + 客服工作台
-- **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由（注册按角色细分：`/service/register/agent`、`/admin/register/tenant`、`/admin/register/platform-admin`）；`/customer/chat` 客户聊天；`/workbench*` 客服工作区（含 `/workbench/customers` 客户目录）；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
+- **路由编排**：`/service/*`、`/admin/*` 为双门户认证路由（注册按角色细分：`/service/register/agent`、`/admin/register/tenant`、`/admin/register/platform-admin`）；`/customer/chat` 登录客户聊天、`/visitor/chat` **免登录访客聊天**（`CustomerChatWidget`，可注入 tenantId/channel）；`/workbench*` 客服工作区（含 `/workbench/customers` 客户目录、`/workbench/service-logs` 服务日志）；`/platform/*`、`/organization/*` 管理后台——受保护路由统一由 `ProtectedRoute` 守卫
 - **工作区路由分流**：`WorkbenchRoute` 通过 `getWorkArea()` 判断 `/workbench` 下的子区域（会话 / 看板 / 知识库 / 配置），非会话区域渲染 `ServiceWorkspace`
 - **客服工作台三栏布局**：会话列表（筛选 + 搜索，**条件同步 URL** 可刷新保持）、消息工作区（SLA 实时倒计时、AI 接管横幅、AI 一键接管、消息流、AI 建议、快捷回复）、客户上下文侧栏（客户档案、接管摘要、知识引用、备注工单）
 - 会话数据来自 `workbenchData.js`，AI 接管逻辑来自 `aiService.js`
@@ -154,6 +165,36 @@ ai-customer-service-system/
 ### src/api.js — 业务 API 封装
 `authRequest` 自动附带 Bearer Token；`fetchAgents` / `updateAgentStatus`（坐席 F-006）、`fetchTenants` / `updateTenantStatus` / `createTenant` / `updateTenant`（租户 F-002），支持分页与搜索参数。
 
+### src/chatClient.js — 免登录访客对话客户端 SDK
+面向 Web / H5 / 小程序的多端对话客户端：
+- 访客 session 存**独立 localStorage key**（`ai-customer-service-guest`），绝不写入共享登录态，不覆盖坐席/管理员会话
+- `ensureGuestSession`：用客户端生成的 UUID（`clientSessionId`）在后端幂等收敛到同一匿名客户，换取 JWT（TTL 7 天）
+- `createChatClient`：组合 REST（`conversationApi`）+ Realtime（`conversationRealtime`），`getToken` 可注入，解耦后端实现
+- 无 `crypto.randomUUID` 环境（小程序）自动降级 UUID 生成
+
+### src/conversationApi.js — 会话 REST API
+- `listConversations` / `createOrResumeConversation`：分页查询、建/恢复会话（带查询参数过滤）
+- `normalizeMessage` / `normalizeConversation`：后端 DTO → 前端视图模型统一映射
+- 复用 `api.js` 的 `authRequest`（Bearer Token）
+
+### src/conversationRealtime.js — 会话实时层
+- 基于 `socket.io-client`，`createConversationRealtime` 返回带订阅去重的实时通道
+- 覆盖 10 类事件：会话创建/接管/释放/分配/结束、消息创建/已读、评价调度/可见/提交
+- 事件 ID 去重（最多缓存 500 条）+ 断线重连回调
+
+### src/dashboardInsights.js — 看板洞察指标
+- `buildDashboardComparisons`：机构（总数/活跃/占比）、客服（在线/忙碌/负载率）、渠道（排名/占比）对比指标
+- `buildOrganizationDashboardComparisons`：机构维度会话构成、AI 处理率等洞察
+
+### src/components/CustomerCenter.jsx — 客户中心
+客服工作台客户目录界面，客户档案列表与检索。
+
+### src/components/LogsView.jsx — 服务日志视图
+`/workbench/service-logs` 客服操作与系统事件日志，按级别/时间查看。
+
+### src/chat/CustomerChatWidget.jsx — 客户聊天 Widget
+`/visitor/chat` 免登录访客聊天窗口（`autoOpen` 支持），通过 `chatClient` SDK 对接后端。
+
 ### src/prototype.js — 原型与状态逻辑
 - `getWorkArea` / `getAgentWorkspaceNav`：工作区路由映射与角色感知导航
 - `transitionChat`：客户聊天状态机（欢迎 → 排队 → 接待 → 结束 → 评价）
@@ -187,7 +228,7 @@ ai-customer-service-system/
 - `SlaCountdown`：SLA 剩余时间实时倒计时，按风险档位变色
 
 ### 测试（src/*.test.js）
-`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / 两级审核状态机 / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`workbenchData.test.js`（分配映射 / 团队队列），共 **49 个用例**，`npm test` 全绿。
+`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / 两级审核状态机 / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`workbenchData.test.js`（分配映射 / 团队队列）、`chatClient.test.js`（访客会话 / 客户端）、`conversationApi.test.js`（会话 REST 归一化）、`conversationRealtime.test.js`（实时事件去重）、`dashboardInsights.test.js`（看板洞察指标），共 **66 个用例**，`npm test` 全绿。
 
 ### docs/ 与 output/ — 文档与原型
 - `docs/原型设计/*.html`：7 个可独立打开的高保真原型页
@@ -205,7 +246,7 @@ npm install
 # 启动开发服务器（默认 http://localhost:5173）
 npm run dev
 
-# 运行单元测试（49 个用例）
+# 运行单元测试（66 个用例）
 npm test
 
 # 生产构建

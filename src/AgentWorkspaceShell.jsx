@@ -23,6 +23,7 @@ const PAGE_TITLES = {
   dashboard: '客服看板',
   knowledge: '知识库',
   tickets: '工单协同',
+  serviceLogs: '服务日志',
   settings: 'AI 与界面配置',
 }
 

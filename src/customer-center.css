@@ -1,0 +1,30 @@
+/* 平台端 · 客户管理中心 */
+.cc-toolbar{display:flex;gap:8px;align-items:center;margin:-4px 0 14px;flex-wrap:wrap}
+.cc-toolbar .admin-search{max-width:300px}
+.cc-toolbar .cc-org{display:flex;align-items:center;gap:6px;font-size:11px;color:#718096}
+.cc-toolbar select{height:36px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;color:#435269;font-size:11px;min-width:150px}
+.cc-toolbar .cc-gap{flex:1}
+.cc-pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;font-size:10px;color:#8a98a9;margin:-6px 0 18px}
+.cc-pagination button{border:1px solid var(--line);background:#fff;border-radius:5px;padding:5px 10px;font-size:10px;color:#58677b}
+.cc-pagination button:disabled{opacity:.4;cursor:not-allowed}
+.cc-empty{text-align:center;color:#93a0b1!important;padding:30px 0!important;white-space:normal!important}
+.cc-detail{width:min(780px,100%)}
+.cc-detail h3{font-size:12px;color:#28364d;margin:6px 0 8px}
+.cc-detail h3 small{font-size:9px;color:#93a0b1;font-weight:400;margin-left:6px}
+.cc-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px;margin:4px 0 14px}
+.cc-detail-grid span{font-size:9px;color:#8a98a9;display:block}
+.cc-detail-grid strong{font-size:11px;color:#2c3c55;font-weight:600;word-break:break-all}
+.cc-detail-grid .cc-span{grid-column:1/-1}
+.cc-convs{border-top:1px solid var(--line-soft);padding-top:10px;max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.cc-hint{font-size:10px;color:#93a0b1;margin:6px 0}
+.cc-conv-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line-soft);font-size:11px;color:#4d5b70}
+.cc-conv-main{flex:1;min-width:0}
+.cc-conv-main strong{display:block;color:#354359;font-size:11px}
+.cc-conv-main span{color:#8a98a9;font-size:9px}
+.cc-conv-time{font-size:9px;color:#98a5b6;white-space:nowrap}
+.cc-conv-msgs{background:#f8fafc;border-radius:6px;padding:8px 10px;margin:6px 0 4px;display:flex;flex-direction:column;gap:6px}
+.cc-conv-msgs p{margin:0;font-size:10px;color:#4d5b70;line-height:1.6}
+.cc-conv-msgs p b{color:#8a98a9;font-weight:600;margin-right:6px}
+.cc-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:4px}
+.admin-modal select{border:1px solid var(--line);border-radius:5px;background:#fff;padding:8px;color:#435269;font-size:11px;outline:0}
+@media(max-width:760px){.cc-detail-grid{grid-template-columns:1fr 1fr}.cc-form-grid{grid-template-columns:1fr}}

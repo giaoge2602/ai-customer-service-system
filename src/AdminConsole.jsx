@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { auditLogs, channels, customers, knowledgeDocs, models, organizationStats, platformStats, routingRules, services, agents as demoAgents, todayRealtime, channelShare, tokenTrend, platformTrend, platformTodos, dashboardAlerts, monitoredConversations, conversationMessages, realtimeMetrics, alertList, orgActivityData, orgRealtime, orgTodayRealtime, orgChannelShare, orgTokenTrend, orgRealtimeAlerts, orgAgentLoad } from './adminData'
+import { auditLogs, channels, customers, knowledgeDocs, models, organizationStats, platformStats, services, agents as demoAgents, todayRealtime, channelShare, tokenTrend, platformTrend, platformTodos, dashboardAlerts, realtimeMetrics, alertList, orgActivityData, orgRealtime, orgTodayRealtime, orgChannelShare, orgTokenTrend, orgRealtimeAlerts, orgAgentLoad } from './adminData'
 import { deriveAgentWorkload, getConversationAssignment, getQueueType, conversationsSeed } from './workbenchData'
 import { createTenant, fetchAgents, fetchTenants, updateAgentStatus, updateTenant, updateTenantStatus } from './api'
 import AgentList from './components/AgentList'
 import ApprovalCenter from './components/ApprovalCenter'
+import CustomerCenter from './components/CustomerCenter'
+import LogsView from './components/LogsView'
+import { buildDashboardComparisons, buildOrganizationDashboardComparisons } from './dashboardInsights'
+import { assignConversation, endConversation, getConversation, listConversations } from './conversationApi'
+import { createConversationRealtime } from './conversationRealtime'
+import { readAccessToken } from './api'
 
 const AIcon = ({ name, size = 17 }) => {
   const paths = {
@@ -33,15 +39,15 @@ const AIcon = ({ name, size = 17 }) => {
 }
 
 const platformNav = [
-  { group: '平台运营', items: [{ id: 'overview', label: '平台总览', icon: 'grid' }, { id: 'organizations', label: '机构列表', icon: 'building' }, { id: 'approvals', label: '审核中心', icon: 'shield' }, { id: 'conversations', label: '会话监控', icon: 'chat' }] },
-  { group: '平台配置', items: [{ id: 'models', label: 'AI 模型中心', icon: 'spark' }, { id: 'config', label: '全局配置', icon: 'settings' }] },
-  { group: '安全与运维', items: [{ id: 'alerts', label: '告警中心', icon: 'shield' }, { id: 'audit', label: '安全与审计', icon: 'shield' }, { id: 'monitoring', label: '运维监控', icon: 'chart' }] },
+  { group: '平台运营', items: [{ id: 'overview', label: '平台总览', icon: 'grid' }, { id: 'organizations', label: '机构列表', icon: 'building' }, { id: 'customerCenter', label: '客户管理中心', icon: 'users' }, { id: 'approvals', label: '审核中心', icon: 'shield' }, { id: 'conversations', label: '会话监控', icon: 'chat' }] },
+  { group: '平台配置', items: [{ id: 'models', label: 'AI 模型中心', icon: 'spark' }] },
+  { group: '安全与运维', items: [{ id: 'alerts', label: '告警中心', icon: 'shield' }, { id: 'audit', label: '安全与审计', icon: 'shield' }, { id: 'monitoring', label: '运维监控', icon: 'chart' }, { id: 'logs', label: '系统日志', icon: 'database' }] },
 ]
 const orgNav = [
-  { group: '运营工作区', items: [{ id: 'overview', label: '机构总览', icon: 'grid' }] },
-  { group: '客户与组织', items: [{ id: 'people', label: '客服与组织', icon: 'users' }, { id: 'approvals', label: '审核中心', icon: 'shield' }, { id: 'customers', label: '客户中心', icon: 'users' }, { id: 'conversations', label: '会话监控', icon: 'chat' }] },
-  { group: 'AI 服务', items: [{ id: 'knowledge', label: '知识库', icon: 'database' }, { id: 'ai', label: 'AI 与路由策略', icon: 'route' }, { id: 'channels', label: '渠道接入', icon: 'channel' }] },
-  { group: '数据与运营', items: [{ id: 'operations', label: '服务运营', icon: 'chart' }] },
+  { group: '运营工作区', items: [{ id: 'overview', label: '总览', icon: 'grid' }] },
+  { group: '客户与组织', items: [{ id: 'people', label: '客服', icon: 'users' }, { id: 'approvals', label: '审核中心', icon: 'shield' }, { id: 'customers', label: '客户中心', icon: 'users' }, { id: 'conversations', label: '会话监控', icon: 'chat' }] },
+  { group: 'AI 服务', items: [{ id: 'knowledge', label: '知识库', icon: 'database' }, { id: 'channels', label: '渠道接入', icon: 'channel' }] },
+  { group: '数据与运营', items: [{ id: 'operations', label: '服务运营', icon: 'chart' }, { id: 'oplogs', label: '操作日志', icon: 'clock' }] },
 ]
 
 function currentModule(pathname, mode) {
@@ -86,7 +92,6 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
   const [localTenants, setLocalTenants] = useState([])
   const [localAgents, setLocalAgents] = useState([])
   const [localDocs, setLocalDocs] = useState(knowledgeDocs)
-  const [localRules, setLocalRules] = useState(routingRules)
   const [localChannels, setLocalChannels] = useState(channels)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -171,7 +176,6 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
     }
   }
   const publishDoc = (id) => { setLocalDocs((items) => items.map((item) => item.id === id ? { ...item, status: 'published', statusText: '已发布' } : item)); notify('知识文档已发布') }
-  const toggleRule = (id) => { setLocalRules((items) => items.map((item) => item.id === id ? { ...item, enabled: !item.enabled } : item)); notify('路由策略状态已更新') }
   const toggleChannel = (id) => { setLocalChannels((items) => items.map((item) => item.id === id ? { ...item, status: item.status === 'connected' ? 'warning' : 'connected', statusText: item.status === 'connected' ? '待配置' : '已连接' } : item)); notify('渠道连接状态已更新') }
 
   const renderSidebar = (className = '') => <aside className={`admin-sidebar ${className}`}><div className="admin-side-label">{isPlatform ? 'ORGANIZATION' : 'ORGANIZATION'} CONSOLE</div>{nav.map((section) => <div className="admin-nav-group" key={section.group}><span>{section.group}</span>{section.items.map((item) => <button type="button" key={item.id} className={`admin-nav-item ${module === item.id ? 'active' : ''}`} aria-current={module === item.id ? 'page' : undefined} onClick={() => go(item.id)}><AIcon name={item.icon} size={16} /><span>{item.label}</span>{item.id === 'audit' && <b>2</b>}</button>)}</div>)}<div className="admin-sidebar-bottom"><button type="button" className="admin-nav-item" onClick={() => notify('帮助中心即将开放')}><AIcon name="settings" size={16} />帮助与设置</button><button type="button" className="admin-nav-item logout" onClick={onLogout}><AIcon name="arrow" size={16} />退出登录</button></div></aside>
@@ -182,8 +186,8 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
       {mobileNavOpen && <><button type="button" className="admin-nav-scrim" aria-label="关闭管理导航" onClick={() => { setMobileNavOpen(false); mobileNavButtonRef.current?.focus() }} /><div className="admin-mobile-drawer">{renderSidebar('admin-mobile-sidebar')}</div></>}
       <main className="admin-main"><div className="admin-page-head"><div><div className="admin-breadcrumb">{isPlatform ? '平台管理' : '机构管理'} <span>/</span> {nav.flatMap((section) => section.items).find((item) => item.id === module)?.label || '总览'}</div><h1>{pageTitle(module, isPlatform)}</h1><p>{pageDescription(module, isPlatform)}</p></div><div className="admin-head-actions"><span className="admin-updated">数据更新于 14:30</span>{(module === 'overview' || module === 'organizations' || module === 'people' || module === 'knowledge') && <button className="admin-primary-btn" onClick={() => isPlatform ? setTenantModal({ mode: 'create' }) : openModal(module === 'knowledge' ? '导入知识文档' : '邀请客服')}><AIcon name="plus" size={15} />{isPlatform ? '创建机构' : module === 'knowledge' ? '导入知识' : '邀请客服'}</button>}<button className="admin-secondary-btn" onClick={() => notify('运营摘要已生成（演示）')}><AIcon name="download" size={14} />导出摘要</button></div></div>
         <div className="admin-demo-notice"><AIcon name="shield" size={14} /><span>{isPlatform ? '机构数据已连接数据库 · 其余模块为演示数据' : '客服数据已连接数据库 · 其余模块为演示数据'}</span>{isPlatform && <strong>跨机构查看已开启审计记录</strong>}</div>
-        {module !== 'overview' && <div className="admin-filter-bar"><div className="admin-search"><AIcon name="search" size={15} /><input aria-label="搜索" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={isPlatform ? '搜索机构 ID 或行业' : '搜索姓名、文档或业务对象'} /></div><select aria-label="状态筛选" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option><option value="active">运行中</option><option value="review">待审核</option><option value="paused">已停用</option><option value="published">已发布</option><option value="processing">处理中</option></select><button type="button" className="admin-filter-clear" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除条件</button></div>}
-        {isPlatform ? <PlatformContent module={module} stats={platformStats} tenants={filteredTenants} models={models} logs={auditLogs} services={services} session={session} onToggleTenant={toggleTenant} onEditTenant={(tenant) => setTenantModal({ mode: 'edit', tenant })} onModal={openModal} onNotify={notify} /> : <OrganizationContent module={module} stats={organizationStats} agents={filteredAgents} customers={customers} docs={filteredDocs} rules={localRules} channels={localChannels} session={session} onToggleAgent={toggleAgent} onPublishDoc={publishDoc} onToggleRule={toggleRule} onToggleChannel={toggleChannel} onModal={openModal} onNotify={notify} />}
+        {module !== 'overview' && module !== 'logs' && module !== 'oplogs' && module !== 'customerCenter' && <div className="admin-filter-bar"><div className="admin-search"><AIcon name="search" size={15} /><input aria-label="搜索" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={isPlatform ? '搜索机构 ID 或行业' : '搜索姓名、文档或业务对象'} /></div><select aria-label="状态筛选" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option><option value="active">运行中</option><option value="review">待审核</option><option value="paused">已停用</option><option value="published">已发布</option><option value="processing">处理中</option></select><button type="button" className="admin-filter-clear" onClick={() => { setQuery(''); setStatusFilter('all') }}>清除条件</button></div>}
+        {isPlatform ? <PlatformContent module={module} stats={platformStats} tenants={filteredTenants} models={models} logs={auditLogs} services={services} session={session} onToggleTenant={toggleTenant} onEditTenant={(tenant) => setTenantModal({ mode: 'edit', tenant })} onModal={openModal} onNotify={notify} /> : <OrganizationContent module={module} stats={organizationStats} agents={filteredAgents} customers={customers} docs={filteredDocs} channels={localChannels} session={session} onToggleAgent={toggleAgent} onPublishDoc={publishDoc} onToggleChannel={toggleChannel} onModal={openModal} onNotify={notify} />}
       </main></div>
     {showModal && <DemoModal title={modalTitle} onClose={() => setShowModal(false)} onSubmit={() => { setShowModal(false); notify(`${modalTitle}成功（演示）`) }} />}
     {tenantModal && <TenantFormModal title={tenantModal.mode === 'create' ? '创建新机构' : '编辑机构'} initialName={tenantModal.mode === 'edit' ? tenantModal.tenant.name : ''} onClose={() => setTenantModal(null)} onSubmit={submitTenantForm} />}
@@ -191,12 +195,12 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
   </div>
 }
 
-function pageTitle(module, platform) { const map = platform ? { overview: '平台运营总览', organizations: '机构列表', approvals: '注册审核中心', conversations: '会话监控', models: 'AI 模型中心', config: '平台全局配置', alerts: '告警中心', audit: '安全与审计', monitoring: '运维监控' } : { overview: '机构运营总览', people: '客服与组织', approvals: '客服审核中心', customers: '客户中心', conversations: '会话监控', knowledge: '知识库运营', ai: 'AI 与路由策略', channels: '渠道与开放能力', operations: '服务运营' }; return map[module] || '管理中心' }
-function pageDescription(module, platform) { const map = platform ? { overview: '实时监控平台运营状态，聚合查看机构健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与机构隔离', approvals: '审核机构入驻与客服入职申请，管理邀请码派发，两级审核通过后账号方可激活', conversations: '跨机构查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', models: '统一管理模型供应商、版本和默认策略', config: '配置平台级限流、通知与全局参数', alerts: '管理平台告警，及时处理异常事件', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', approvals: '审核本机构客服入职申请，管理客服邀请码，机构与平台两端通过后账号激活', customers: '统一管理跨渠道客户档案、标签与隐私状态', conversations: '查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', knowledge: '管理知识导入、审核发布与检索命中质量', ai: '配置意图、置信度护栏、模型和人工兑底', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表' }; return map[module] || '配置和运营你的客户服务团队' }
+function pageTitle(module, platform) { const map = platform ? { overview: '平台运营总览', organizations: '机构列表', customerCenter: '客户管理中心', approvals: '注册审核中心', conversations: '会话监控', models: 'AI 模型中心', alerts: '告警中心', audit: '安全与审计', monitoring: '运维监控', logs: '系统日志' } : { overview: '机构运营总览', people: '客服', approvals: '客服审核中心', customers: '客户中心', conversations: '会话监控', knowledge: '知识库运营', channels: '渠道与开放能力', operations: '服务运营', oplogs: '机构操作日志' }; return map[module] || '管理中心' }
+function pageDescription(module, platform) { const map = platform ? { overview: '实时监控平台运营状态，聚合查看机构健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与机构隔离', customerCenter: '跨机构查询客户档案，支持增删改查与历史会话追溯', approvals: '审核机构入驻与客服入职申请，管理邀请码派发，两级审核通过后账号方可激活', conversations: '跨机构查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', models: '统一管理模型供应商、版本和默认策略', alerts: '管理平台告警，及时处理异常事件', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度', logs: '聚合检索平台关键链路日志，按级别追踪异常与告警事件' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', approvals: '审核本机构客服入职申请，管理客服邀请码，机构与平台两端通过后账号激活', customers: '统一管理跨渠道客户档案、标签与隐私状态', conversations: '查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', knowledge: '管理知识导入、审核发布与检索命中质量', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表', oplogs: '追溯机构内知识发布、账号变更与配置调整等关键操作' }; return map[module] || '配置和运营你的客户服务团队' }
 
-function PlatformContent({ module, stats, tenants: tenantRows, models: modelRows, logs, services: serviceRows, session, onToggleTenant, onEditTenant, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="platform" session={session} onNotify={onNotify} />; if (module === 'organizations') return <><SectionHeader title="机构列表" subtitle={`共 ${tenantRows.length} 个机构 · 数据按机构隔离`} /><DataTable headers={['机构 ID', '套餐', '状态', '坐席使用', '今日会话', '配额使用', '最近活跃', '操作']} rows={tenantRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id} · {row.industry}</small></strong>, row.plan, <Pill tone={row.status === 'active' ? 'success' : row.status === 'review' ? 'warning' : 'muted'}>{row.statusText}</Pill>, row.agents, row.conversations, <Progress value={row.usage} />, row.lastActive, <span className="table-actions"><button className="table-action" onClick={() => onEditTenant(row)}>编辑</button><button className="table-action" onClick={() => { onToggleTenant(row.id); onNotify('机构状态已更新并写入审计') }}>{row.status === 'paused' ? '启用' : row.status === 'review' ? '审核' : '停用'}</button></span>])} /></>; if (module === 'models') return <><SectionHeader title="模型供应商" subtitle="3 个模型已接入 · 1 个生产中" /><div className="admin-card-grid">{modelRows.map((model) => <div className="model-card" key={model.id}><div className="model-card-head"><div className="model-logo">{model.provider.slice(0, 1)}</div><Pill tone={model.status === 'active' ? 'success' : model.status === 'testing' ? 'purple' : 'muted'}>{model.statusText}</Pill></div><h3>{model.name}</h3><p>{model.provider} · {model.mode}</p><div className="model-stats"><span>版本<strong>{model.version}</strong></span><span>平均延迟<strong>{model.latency}</strong></span><span>Token 用量<strong>{model.usage}</strong></span></div><button className={model.isDefault ? 'table-action disabled' : 'admin-outline-btn'} onClick={() => onNotify(model.isDefault ? '已是默认模型' : `${model.name} 已设为默认模型`)}>{model.isDefault ? '当前默认模型' : '设为默认模型'}</button></div>)}</div></>; if (module === 'audit') return <><SectionHeader title="审计事件" subtitle="所有关键操作均保留 requestId 和机构上下文" /><DataTable headers={['事件 ID', '操作者', '动作', '目标资源', '时间', '风险', '操作']} rows={logs.map((row) => [<code>{row.id}</code>, <strong>{row.actor}<small>{row.role}</small></strong>, row.action, row.target, row.time, <Pill tone={row.risk === 'high' ? 'danger' : row.risk === 'medium' ? 'warning' : 'success'}>{row.riskText}</Pill>, <button className="table-action" onClick={() => onNotify(`已打开 ${row.id} 详情`)}>查看详情</button>])} /></>; if (module === 'monitoring') return <><SectionHeader title="服务健康" subtitle="消息链路无静默丢失 · 最近一次巡检 14:29" /><div className="service-grid">{serviceRows.map((service) => <div className="service-card" key={service.key}><div className="service-icon"><AIcon name={service.key === 'rag' ? 'database' : 'pulse'} size={17} /></div><div><h3>{service.name}</h3><span>{service.statusText}</span></div><strong>{service.value}</strong><small>延迟 {service.latency}</small></div>)}</div><SectionHeader title="近期告警" subtitle="需要平台管理员关注的事件" /><div className="alert-list"><Alert text="知识检索服务 P95 延迟升高，已自动切换备用节点" tone="warning" time="12 分钟前"/><Alert text="TENANT-014 配额使用达到 92%，建议联系机构管理员" tone="danger" time="36 分钟前"/></div></>; if (module === 'config') return <SettingsPanel onNotify={onNotify} />; if (module === 'conversations') return <ConversationMonitor />; if (module === 'alerts') return <AlertCenter />; return <PlatformOverview stats={stats} tenants={tenantRows} logs={logs} onModal={onModal} onNotify={onNotify} /> }
+function PlatformContent({ module, stats, tenants: tenantRows, models: modelRows, logs, services: serviceRows, session, onToggleTenant, onEditTenant, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="platform" session={session} onNotify={onNotify} />; if (module === 'customerCenter') return <CustomerCenter onNotify={onNotify} />; if (module === 'organizations') return <><SectionHeader title="机构列表" subtitle={`共 ${tenantRows.length} 个机构 · 数据按机构隔离`} /><DataTable headers={['机构 ID', '套餐', '状态', '坐席使用', '今日会话', '配额使用', '最近活跃', '操作']} rows={tenantRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id} · {row.industry}</small></strong>, row.plan, <Pill tone={row.status === 'active' ? 'success' : row.status === 'review' ? 'warning' : 'muted'}>{row.statusText}</Pill>, row.agents, row.conversations, <Progress value={row.usage} />, row.lastActive, <span className="table-actions"><button className="table-action" onClick={() => onEditTenant(row)}>编辑</button><button className="table-action" onClick={() => { onToggleTenant(row.id); onNotify('机构状态已更新并写入审计') }}>{row.status === 'paused' ? '启用' : row.status === 'review' ? '审核' : '停用'}</button></span>])} /></>; if (module === 'models') return <><SectionHeader title="模型供应商" subtitle="3 个模型已接入 · 1 个生产中" /><div className="admin-card-grid">{modelRows.map((model) => <div className="model-card" key={model.id}><div className="model-card-head"><div className="model-logo">{model.provider.slice(0, 1)}</div><Pill tone={model.status === 'active' ? 'success' : model.status === 'testing' ? 'purple' : 'muted'}>{model.statusText}</Pill></div><h3>{model.name}</h3><p>{model.provider} · {model.mode}</p><div className="model-stats"><span>版本<strong>{model.version}</strong></span><span>平均延迟<strong>{model.latency}</strong></span><span>Token 用量<strong>{model.usage}</strong></span></div><button className={model.isDefault ? 'table-action disabled' : 'admin-outline-btn'} onClick={() => onNotify(model.isDefault ? '已是默认模型' : `${model.name} 已设为默认模型`)}>{model.isDefault ? '当前默认模型' : '设为默认模型'}</button></div>)}</div></>; if (module === 'audit') return <><SectionHeader title="审计事件" subtitle="所有关键操作均保留 requestId 和机构上下文" /><DataTable headers={['事件 ID', '操作者', '动作', '目标资源', '时间', '风险', '操作']} rows={logs.map((row) => [<code>{row.id}</code>, <strong>{row.actor}<small>{row.role}</small></strong>, row.action, row.target, row.time, <Pill tone={row.risk === 'high' ? 'danger' : row.risk === 'medium' ? 'warning' : 'success'}>{row.riskText}</Pill>, <button className="table-action" onClick={() => onNotify(`已打开 ${row.id} 详情`)}>查看详情</button>])} /></>; if (module === 'monitoring') return <><SectionHeader title="服务健康" subtitle="消息链路无静默丢失 · 最近一次巡检 14:29" /><div className="service-grid">{serviceRows.map((service) => <div className="service-card" key={service.key}><div className="service-icon"><AIcon name={service.key === 'rag' ? 'database' : 'pulse'} size={17} /></div><div><h3>{service.name}</h3><span>{service.statusText}</span></div><strong>{service.value}</strong><small>延迟 {service.latency}</small></div>)}</div><SectionHeader title="近期告警" subtitle="需要平台管理员关注的事件" /><div className="alert-list"><Alert text="知识检索服务 P95 延迟升高，已自动切换备用节点" tone="warning" time="12 分钟前"/><Alert text="TENANT-014 配额使用达到 92%，建议联系机构管理员" tone="danger" time="36 分钟前"/></div></>; if (module === 'conversations') return <ConversationMonitor mode="platform" session={session} agents={[]} />; if (module === 'alerts') return <AlertCenter />; if (module === 'logs') return <LogsView dataset="system" />; return <PlatformOverview stats={stats} tenants={tenantRows} logs={logs} onModal={onModal} onNotify={onNotify} /> }
 
-function OrganizationContent({ module, stats, agents: agentRows, customers: customerRows, docs, rules, channels: channelRows, session, onToggleAgent, onPublishDoc, onToggleRule, onToggleChannel, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="organization" session={session} onNotify={onNotify} />; if (module === 'people') return <><SectionHeader title="客服账号" subtitle={`${agentRows.length} 名客服 · ${agentRows.filter((row) => row.status === 'online').length} 人启用 · 数据来自数据库`} /><AgentList agents={agentRows} onToggle={onToggleAgent} onNotify={onNotify} /></>; if (module === 'customers') return <><SectionHeader title="客户档案" subtitle="跨渠道统一身份 · 敏感字段已脱敏" /><DataTable headers={['客户', '客户等级', '来源', '手机号', '标签', '历史会话', '最近咨询', '隐私状态']} rows={customerRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, <Pill tone={row.level.includes('VIP') || row.level.includes('高价值') ? 'purple' : 'muted'}>{row.level}</Pill>, row.source, row.phone, <div className="tag-inline">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>, row.sessions, row.last, <Pill tone={row.privacy === '已授权' ? 'success' : 'warning'}>{row.privacy}</Pill>])} /></>; if (module === 'knowledge') return <><SectionHeader title="知识文档" subtitle="4 个知识来源 · 1 个待审核 · 命中率 91.4%" /><DataTable headers={['文档名称', '类型', '状态', '分片数', '命中率', '最近更新', '操作']} rows={docs.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, row.type, <Pill tone={row.status === 'published' ? 'success' : row.status === 'review' ? 'warning' : 'purple'}>{row.statusText}</Pill>, row.chunks, row.hitRate, row.updated, <button className="table-action" onClick={() => row.status === 'published' ? onNotify('已打开文档详情') : onPublishDoc(row.id)}>{row.status === 'published' ? '查看' : '发布'}</button>])} /></>; if (module === 'ai') return <><SectionHeader title="AI 策略与护栏" subtitle="当前模型：DeepSeek V3 · 低置信度自动转人工" /><div className="policy-banner"><div className="policy-icon"><AIcon name="shield" /></div><div><strong>策略服务运行正常</strong><span>引用要求、禁答主题与人工确认规则均已启用</span></div><button className="table-action" onClick={() => onNotify('策略测试完成：3/3 场景符合预期')}>测试策略</button></div><DataTable headers={['规则名称', '目标技能组', '置信度阈值', '兜底动作', '命中次数', '状态', '操作']} rows={rules.map((row) => [<strong className="table-name">{row.name}<small>意图编码 · {row.intent}</small></strong>, row.group, `${row.threshold}%`, row.fallback, row.hits, <Pill tone={row.enabled ? 'success' : 'muted'}>{row.enabled ? '已启用' : '已停用'}</Pill>, <button className="table-action" onClick={() => onToggleRule(row.id)}>{row.enabled ? '停用' : '启用'}</button>])} /></>; if (module === 'channels') return <><SectionHeader title="渠道连接" subtitle="3 个渠道正常 · 1 个待配置" /><div className="channel-admin-grid">{channelRows.map((channel) => <div className="channel-admin-card" key={channel.id}><div className="channel-admin-head"><div className="channel-symbol"><AIcon name={channel.name === 'Open API' ? 'database' : 'channel'} size={18} /></div><Pill tone={channel.status === 'connected' ? 'success' : 'warning'}>{channel.statusText}</Pill></div><h3>{channel.name}</h3><p>{channel.description}</p><div><span>今日会话</span><strong>{channel.conversations}</strong><small>{channel.updated}</small></div><button className="admin-outline-btn" onClick={() => onToggleChannel(channel.id)}>{channel.status === 'connected' ? '断开连接' : '重新连接'}</button></div>)}</div></>; if (module === 'operations') return <Operations onNotify={onNotify} />; if (module === 'conversations') return <ConversationMonitor />; return <OrganizationOverview stats={stats} agentRows={agentRows} onModal={onModal} onNotify={onNotify} /> }
+function OrganizationContent({ module, stats, agents: agentRows, customers: customerRows, docs, channels: channelRows, session, onToggleAgent, onPublishDoc, onToggleChannel, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="organization" session={session} onNotify={onNotify} />; if (module === 'people') return <><SectionHeader title="客服账号" subtitle={`${agentRows.length} 名客服 · ${agentRows.filter((row) => row.status === 'online').length} 人启用 · 数据来自数据库`} /><AgentList agents={agentRows} onToggle={onToggleAgent} onNotify={onNotify} /></>; if (module === 'customers') return <><SectionHeader title="客户档案" subtitle="跨渠道统一身份 · 敏感字段已脱敏" /><DataTable headers={['客户', '客户等级', '来源', '手机号', '标签', '历史会话', '最近咨询', '隐私状态']} rows={customerRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, <Pill tone={row.level.includes('VIP') || row.level.includes('高价值') ? 'purple' : 'muted'}>{row.level}</Pill>, row.source, row.phone, <div className="tag-inline">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>, row.sessions, row.last, <Pill tone={row.privacy === '已授权' ? 'success' : 'warning'}>{row.privacy}</Pill>])} /></>; if (module === 'knowledge') return <><SectionHeader title="知识文档" subtitle="4 个知识来源 · 1 个待审核 · 命中率 91.4%" /><DataTable headers={['文档名称', '类型', '状态', '分片数', '命中率', '最近更新', '操作']} rows={docs.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, row.type, <Pill tone={row.status === 'published' ? 'success' : row.status === 'review' ? 'warning' : 'purple'}>{row.statusText}</Pill>, row.chunks, row.hitRate, row.updated, <button className="table-action" onClick={() => row.status === 'published' ? onNotify('已打开文档详情') : onPublishDoc(row.id)}>{row.status === 'published' ? '查看' : '发布'}</button>])} /></>; if (module === 'channels') return <><SectionHeader title="渠道连接" subtitle="3 个渠道正常 · 1 个待配置" /><div className="channel-admin-grid">{channelRows.map((channel) => <div className="channel-admin-card" key={channel.id}><div className="channel-admin-head"><div className="channel-symbol"><AIcon name={channel.name === 'Open API' ? 'database' : 'channel'} size={18} /></div><Pill tone={channel.status === 'connected' ? 'success' : 'warning'}>{channel.statusText}</Pill></div><h3>{channel.name}</h3><p>{channel.description}</p><div><span>今日会话</span><strong>{channel.conversations}</strong><small>{channel.updated}</small></div><button className="admin-outline-btn" onClick={() => onToggleChannel(channel.id)}>{channel.status === 'connected' ? '断开连接' : '重新连接'}</button></div>)}</div></>; if (module === 'operations') return <Operations onNotify={onNotify} />; if (module === 'oplogs') return <LogsView dataset="operation" />; if (module === 'conversations') return <ConversationMonitor mode="organization" session={session} agents={agentRows} />; return <OrganizationOverview stats={stats} agentRows={agentRows} onModal={onModal} onNotify={onNotify} /> }
 
 function PlatformOverview({ stats, tenants: rows, logs, onNotify }) {
   return <>
@@ -304,56 +308,55 @@ function BarChart({ items, className = '' }) {
   )
 }
 function TodayPanel() {
-  const items = [
-    { label: '机构总数', value: todayRealtime.orgs, color: '#4163cb' },
-    { label: '在线机构', value: todayRealtime.onlineOrgs, color: '#22835d' },
-    { label: '客服总数', value: todayRealtime.agents, color: '#7656c9' },
-    { label: '在线客服', value: todayRealtime.onlineAgents, color: '#b6791a' },
-  ]
-  const aiRate = Math.round((todayRealtime.aiHandled / todayRealtime.conversations) * 1000) / 10
+  const { organizations, agents } = buildDashboardComparisons(todayRealtime, realtimeMetrics, [])
   return (
-    <div className="dd-panel">
-      <BarChart items={items} className="dd-today-bars" />
-      <div className="dd-side-stats">
-        <div><span>今日会话总量</span><strong>{todayRealtime.conversations.toLocaleString()}</strong></div>
-        <div><span>AI 接管会话</span><strong>{todayRealtime.aiHandled.toLocaleString()}</strong></div>
-        <div><span>AI 接管率</span><strong>{aiRate}%</strong></div>
-      </div>
+    <div className="platform-comparison-grid">
+      <section className="relationship-card organization-relationship">
+        <header><div><span>机构活跃度</span><strong>总量与活跃构成</strong></div><b>{organizations.activeRate}%</b></header>
+        <div className="relationship-primary"><div><span>机构总数</span><strong>{organizations.total}</strong></div><i>包含</i><div><span>活跃机构</span><strong>{organizations.active}</strong></div></div>
+        <div className="relationship-track" role="img" aria-label={`活跃机构 ${organizations.active} 家，非活跃机构 ${organizations.inactive} 家`}><i className="active" style={{ width: `${organizations.activeRate}%` }} /><i className="inactive" style={{ width: `${100 - organizations.activeRate}%` }} /></div>
+        <div className="relationship-legend"><span><i className="active" />活跃 {organizations.active}</span><span><i className="inactive" />非活跃 {organizations.inactive}</span></div>
+        <div className="relationship-details"><span>近 7 日新增<strong>+{todayRealtime.newOrgs7d}</strong></span><span>待审核机构<strong>{todayRealtime.pendingOrgs}</strong></span><span>活跃率<strong>{organizations.activeRate}%</strong></span></div>
+      </section>
+      <section className="relationship-card agent-relationship">
+        <header><div><span>客服容量</span><strong>总量与工作状态</strong></div><b>{agents.onlineRate}%</b></header>
+        <div className="relationship-primary"><div><span>客服总数</span><strong>{agents.total}</strong></div><i>其中</i><div><span>在线客服</span><strong>{agents.online}</strong></div></div>
+        <div className="relationship-track" role="img" aria-label={`在线客服 ${agents.online} 人，离线客服 ${agents.offline} 人`}><i className="online" style={{ width: `${agents.onlineRate}%` }} /><i className="offline" style={{ width: `${100 - agents.onlineRate}%` }} /></div>
+        <div className="workload-track" role="img" aria-label={`在线客服中忙碌 ${agents.busy} 人，空闲 ${agents.idle} 人`}><i className="busy" style={{ width: `${agents.loadRate}%` }} /><i className="idle" style={{ width: `${agents.idleRate}%` }} /></div>
+        <div className="workload-legend"><span><i className="busy" />忙碌 <strong>{agents.busy} 人</strong><em>{agents.loadRate}%</em></span><span><i className="idle" />空闲 <strong>{agents.idle} 人</strong><em>{agents.idleRate}%</em></span></div>
+        <div className="relationship-details four"><span>忙碌<strong>{agents.busy}</strong></span><span>空闲<strong>{agents.idle}</strong></span><span>离线<strong>{agents.offline}</strong></span><span>负载率<strong>{agents.loadRate}%</strong></span></div>
+      </section>
     </div>
-  )
-}
-function PieChart({ slices, centerValue, centerLabel }) {
-  const total = slices.reduce((sum, s) => sum + s.value, 0)
-  const r = 58
-  const c = 2 * Math.PI * r
-  let offset = 0
-  return (
-    <svg viewBox="0 0 160 160" className="pie-chart" role="img" aria-label={`${centerLabel}渠道分布`}>
-      {slices.map((s) => {
-        const dash = (s.value / total) * c
-        const el = <circle key={s.label} cx="80" cy="80" r={r} fill="none" stroke={s.color} strokeWidth="24" strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-offset} transform="rotate(-90 80 80)" />
-        offset += dash
-        return el
-      })}
-      <text x="80" y="76" textAnchor="middle" className="pie-center-num">{centerValue}</text>
-      <text x="80" y="92" textAnchor="middle" className="pie-center-label">{centerLabel}</text>
-    </svg>
   )
 }
 function SharePanel({ slices = channelShare }) {
   const total = slices.reduce((sum, s) => sum + s.value, 0)
+  const { channels } = buildDashboardComparisons(
+    { orgs: 0, activeOrgs: 0, agents: 0, onlineAgents: 0 },
+    { busyAgents: 0, idleAgents: 0 },
+    slices,
+  )
+  const max = Math.max(...channels.map((channel) => channel.value), 1)
+  const topTwoShare = Math.round((channels.slice(0, 2).reduce((sum, channel) => sum + channel.value, 0) / total) * 1000) / 10
   return (
-    <div className="dd-panel">
-      <PieChart slices={slices} centerValue={total.toLocaleString()} centerLabel="今日会话" />
-      <ul className="pie-legend">
-        {slices.map((s) => (
-          <li key={s.label}>
-            <i style={{ background: s.color }} />
-            <span>{s.label}<small>{Math.round((s.value / total) * 100)}%</small></span>
-            <b>{s.value.toLocaleString()}</b>
-          </li>
+    <div className="channel-composition-layout">
+      <div className="channel-composition-bars">
+        {channels.map((channel) => (
+          <div className="channel-composition-row" key={channel.label}>
+            <b>{channel.rank}</b>
+            <span>{channel.label}</span>
+            <div className="channel-composition-track"><i style={{ width: `${(channel.value / max) * 100}%`, background: channel.color }} /></div>
+            <strong>{channel.value.toLocaleString()}</strong>
+            <em>{channel.share}%</em>
+            <small className={channel.change >= 0 ? 'success-text' : 'danger-text'}>{channel.change >= 0 ? '+' : ''}{channel.change}%</small>
+          </div>
         ))}
-      </ul>
+      </div>
+      <aside className="composition-summary">
+        <div><span>今日会话</span><strong>{total.toLocaleString()}</strong></div>
+        <div><span>主要渠道</span><strong>{channels[0]?.label || '—'}</strong><small>占比 {channels[0]?.share || 0}%</small></div>
+        <div><span>前两渠道集中度</span><strong>{topTwoShare}%</strong><small>渠道分布保持稳定</small></div>
+      </aside>
     </div>
   )
 }
@@ -433,20 +436,33 @@ const platformFullGrid = [
 
 // ==================== 机构业务大屏面板 ====================
 function OrgTodayPanel() {
-  const items = [
-    { label: '排队会话', value: orgTodayRealtime.queued, color: '#b6791a' },
-    { label: '正在接待', value: orgTodayRealtime.handling, color: '#4163cb' },
-    { label: '今日会话', value: orgTodayRealtime.todayConversations, color: '#22835d' },
-    { label: 'AI 接管', value: orgTodayRealtime.aiHandled, color: '#7656c9' },
-  ]
+  const { conversations, agents } = buildOrganizationDashboardComparisons(orgTodayRealtime, orgRealtime)
   return (
-    <div className="dd-panel">
-      <BarChart items={items} className="dd-today-bars" />
-      <div className="dd-side-stats">
-        <div><span>AI 接管率</span><strong>{orgTodayRealtime.aiRate}%</strong></div>
-        <div><span>平均首响</span><strong>{orgTodayRealtime.avgResponse}</strong></div>
-        <div><span>客户满意度</span><strong>{orgTodayRealtime.satisfaction}</strong></div>
-      </div>
+    <div className="platform-comparison-grid">
+      <section className="relationship-card conversation-relationship">
+        <header><div><span>服务承载</span><strong>今日会话与接待构成</strong></div><b>{conversations.aiRate}%</b></header>
+        <div className="org-visual-summary">
+          <div className="ratio-ring conversation-ring" style={{ '--ratio': `${conversations.aiRate * 3.6}deg` }} role="img" aria-label={`AI 接待率 ${conversations.aiRate}%`}><div><strong>{conversations.aiRate}%</strong><span>AI 接待率</span></div></div>
+          <div className="org-breakdown">
+            <div><span><i className="ai" />AI 接待</span><strong>{conversations.aiHandled.toLocaleString()}</strong><small>{conversations.aiRate}%</small></div>
+            <div><span><i className="human" />人工接待</span><strong>{conversations.humanHandled.toLocaleString()}</strong><small>{Math.round((100 - conversations.aiRate) * 10) / 10}%</small></div>
+            <p>今日共处理 <strong>{conversations.total.toLocaleString()}</strong> 个会话</p>
+          </div>
+        </div>
+        <div className="relationship-details"><span>正在接待<strong>{conversations.handling}</strong></span><span>排队等待<strong>{conversations.queued}</strong></span><span>客户满意度<strong>{orgTodayRealtime.satisfaction}</strong></span></div>
+      </section>
+      <section className="relationship-card agent-relationship">
+        <header><div><span>客服容量</span><strong>总量与工作状态</strong></div><b>{agents.onlineRate}%</b></header>
+        <div className="org-visual-summary">
+          <div className="ratio-ring agent-ring" style={{ '--ratio': `${agents.onlineRate * 3.6}deg` }} role="img" aria-label={`客服在线率 ${agents.onlineRate}%`}><div><strong>{agents.onlineRate}%</strong><span>客服在线率</span></div></div>
+          <div className="agent-state-tree">
+            <div className="agent-state-total"><span>客服总数</span><strong>{agents.total} 人</strong></div>
+            <div className="agent-state-online"><span><i />在线 {agents.online}</span><div><b className="busy">忙碌 {agents.busy}</b><b className="idle">空闲 {agents.idle}</b></div></div>
+            <div className="agent-state-offline"><span><i />离线</span><strong>{agents.offline} 人</strong></div>
+          </div>
+        </div>
+        <div className="relationship-details four"><span>在线<strong>{agents.online}</strong></span><span>忙碌<strong>{agents.busy}</strong></span><span>空闲<strong>{agents.idle}</strong></span><span>离线<strong>{agents.offline}</strong></span></div>
+      </section>
     </div>
   )
 }
@@ -567,11 +583,11 @@ function LiveDashboard({ metrics: initialMetrics = realtimeMetrics, panels = pla
         </div>
       </div>
       <div className="ld-live-strip">
-        <div className="ld-live-item"><span>当前会话</span><strong>{metrics.activeConversations}</strong></div>
-        <div className="ld-live-item"><span>排队等待</span><strong className={metrics.queueLength > 5 ? 'danger-text' : ''}>{metrics.queueLength}</strong></div>
+        <div className="ld-live-item"><span>当前会话</span><strong>{metrics.activeConversations}<small>较上一时段 +4</small></strong></div>
+        <div className="ld-live-item"><span>排队等待</span><strong className={metrics.queueLength > 5 ? 'danger-text' : ''}>{metrics.queueLength}<small>SLA 风险 2 个</small></strong></div>
         <div className="ld-live-item"><span>在线客服</span><strong>{metrics.onlineAgents}<small>忙 {metrics.busyAgents} · 闲 {metrics.idleAgents}</small></strong></div>
-        <div className="ld-live-item"><span>平均首响</span><strong>{metrics.avgResponseTime}s</strong></div>
-        <div className="ld-live-item"><span>AI 解决率</span><strong>{metrics.aiResolution}%</strong></div>
+        <div className="ld-live-item"><span>平均首响</span><strong>{metrics.avgResponseTime}s<small>目标 ≤ 60s</small></strong></div>
+        <div className="ld-live-item"><span>AI 解决率</span><strong>{metrics.aiResolution}%<small>较昨日 +1.3%</small></strong></div>
       </div>
       {isFull ? (
         <div className="ld-full-grid">
@@ -645,30 +661,65 @@ function SatisfactionCarousel() {
     </div>
   )
 }
-function ConversationMonitor() {
-  const [selectedId, setSelectedId] = useState(null)
+function ConversationMonitor({ mode, session, agents }) {
+  const [conversations, setConversations] = useState([])
+  const [selectedConv, setSelectedConv] = useState(null)
   const [filter, setFilter] = useState('all')
-  const filtered = filter === 'all' ? monitoredConversations : monitoredConversations.filter((c) => c.status === filter)
-  const selectedConv = monitoredConversations.find((c) => c.id === selectedId)
-  const selectedMessages = selectedId ? conversationMessages[selectedId] || [] : []
+  const [tenantId, setTenantId] = useState(mode === 'organization' ? session.tenantId || '' : '')
+  const [error, setError] = useState('')
+  const filtered = filter === 'all' ? conversations : conversations.filter((conversation) => conversation.status === filter)
+
+  const load = async () => {
+    if (!tenantId) { setConversations([]); setSelectedConv(null); return }
+    try {
+      const result = await listConversations({ pageSize: 100, ...(mode === 'platform' ? { tenantId } : {}), ...(filter !== 'all' ? { status: filter } : {}) })
+      setConversations(result.items)
+      setError('')
+    } catch (requestError) { setError(requestError.message) }
+  }
+  const open = async (id) => {
+    try { setSelectedConv(await getConversation(id, mode === 'platform' ? tenantId : undefined)); setError('') } catch (requestError) { setError(requestError.message) }
+  }
+  useEffect(() => { load() }, [tenantId, filter])
+  useEffect(() => {
+    if (mode !== 'organization') return undefined
+    const token = readAccessToken()
+    if (!token) return undefined
+    const realtime = createConversationRealtime({ token, onReconnect: load })
+    const refresh = () => load()
+    const unsubscribers = ['conversation.created','conversation.claimed','conversation.released','conversation.assigned','conversation.ended','message.created','evaluation.submitted'].map((name) => realtime.subscribe(name, refresh))
+    return () => { unsubscribers.forEach((unsubscribe) => unsubscribe()); realtime.close() }
+  }, [mode, tenantId, filter])
+
+  const assign = async (agentId) => {
+    if (!selectedConv || !agentId) return
+    try { await assignConversation(selectedConv.id, agentId); await load(); await open(selectedConv.id) } catch (requestError) { setError(requestError.message) }
+  }
+  const forceEnd = async () => {
+    if (!selectedConv || !window.confirm('确认强制结束该会话吗？')) return
+    try { await endConversation(selectedConv.id, '机构管理员强制结束'); await load(); await open(selectedConv.id) } catch (requestError) { setError(requestError.message) }
+  }
   return (
     <div className="conversation-monitor">
       <div className="cm-sidebar">
+        {mode === 'platform' && <label className="field-label">机构 ID<input value={tenantId} onChange={(event) => setTenantId(event.target.value.trim())} placeholder="请输入机构 ID 后查询" /></label>}
         <div className="cm-filters">
-          <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>全部 ({monitoredConversations.length})</button>
-          <button type="button" className={filter === 'abnormal' ? 'active' : ''} onClick={() => setFilter('abnormal')}>异常 ({monitoredConversations.filter((c) => c.status === 'abnormal').length})</button>
-          <button type="button" className={filter === 'normal' ? 'active' : ''} onClick={() => setFilter('normal')}>正常</button>
+          <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>全部 ({conversations.length})</button>
+          <button type="button" className={filter === 'queued' ? 'active' : ''} onClick={() => setFilter('queued')}>排队</button>
+          <button type="button" className={filter === 'human' ? 'active' : ''} onClick={() => setFilter('human')}>处理中</button>
+          <button type="button" className={filter === 'ended' ? 'active' : ''} onClick={() => setFilter('ended')}>已结束</button>
         </div>
+        {error && <p className="admin-table-empty">{error}</p>}
         <div className="cm-list">
           {filtered.map((conv) => (
-            <div key={conv.id} className={`cm-item ${conv.status} ${selectedId === conv.id ? 'selected' : ''}`} onClick={() => setSelectedId(conv.id)}>
+            <button type="button" key={conv.id} className={`cm-item ${conv.status} ${selectedConv?.id === conv.id ? 'selected' : ''}`} onClick={() => open(conv.id)}>
               <div className="cm-item-head">
-                <strong>{conv.customer}</strong>
-                <span className={`cm-status ${conv.status}`}>{conv.statusText}</span>
+                <strong>{conv.customer?.name || '客户'}</strong>
+                <span className={`cm-status ${conv.status}`}>{conv.status === 'queued' ? '排队' : conv.status === 'human' ? '处理中' : conv.status === 'evaluated' ? '已评价' : '已结束'}</span>
               </div>
-              <div className="cm-item-meta">客服：{conv.agent} · {conv.startTime} · {conv.duration}</div>
-              <div className="cm-item-preview">{conv.lastMessage}</div>
-            </div>
+              <div className="cm-item-meta">客服：{conv.agent?.name || '未分配'} · 渠道：{conv.channel}</div>
+              <div className="cm-item-preview">{conv.endedReason || `优先级：${conv.priority}`}</div>
+            </button>
           ))}
         </div>
       </div>
@@ -678,20 +729,21 @@ function ConversationMonitor() {
             <div className="cm-header">
               <h3>会话详情：{selectedConv.id}</h3>
               <div className="cm-header-meta">
-                <span>客户：{selectedConv.customer}</span>
-                <span>客服：{selectedConv.agent}</span>
+                <span>客户：{selectedConv.customer?.name}</span>
+                <span>客服：{selectedConv.agent?.name || '未分配'}</span>
                 <span>渠道：{selectedConv.channel}</span>
-                <span>消息数：{selectedConv.messages}</span>
+                <span>消息数：{selectedConv.messages?.length || 0}</span>
               </div>
+              {mode === 'organization' && !['ended','evaluated'].includes(selectedConv.status) && <div className="table-actions"><select defaultValue="" onChange={(event) => assign(event.target.value)}><option value="" disabled>分配 / 改派客服</option>{agents.filter((agent) => ['active','online'].includes(agent.status)).map((agent) => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><button type="button" className="table-action" onClick={forceEnd}>强制结束</button></div>}
             </div>
             <div className="cm-chat">
-              {selectedMessages.map((msg, i) => (
-                <div key={i} className={`cm-message ${msg.sender}`}>
-                  <div className="cm-message-avatar">{msg.name[0]}</div>
+              {(selectedConv.messages || []).map((msg) => (
+                <div key={msg.id} className={`cm-message ${msg.senderType}`}>
+                  <div className="cm-message-avatar">{msg.senderType === 'customer' ? '客' : msg.senderType === 'agent' ? '服' : '系'}</div>
                   <div className="cm-message-content">
-                    <div className="cm-message-name">{msg.name}</div>
-                    <div className="cm-message-text">{msg.text}</div>
-                    <div className="cm-message-time">{msg.time}</div>
+                    <div className="cm-message-name">{msg.senderType === 'customer' ? '客户' : msg.senderType === 'agent' ? '客服' : '系统'}</div>
+                    <div className="cm-message-text">{msg.content}</div>
+                    <div className="cm-message-time">{new Date(msg.createdAt).toLocaleString('zh-CN')}</div>
                   </div>
                 </div>
               ))}
@@ -701,7 +753,7 @@ function ConversationMonitor() {
           <div className="cm-empty">
             <AIcon name="chat" size={48} />
             <p>选择一个会话查看详情</p>
-            <small>支持查看完整聊天记录，定位异常对话</small>
+            <small>{mode === 'platform' ? '平台管理员仅可查看，不能修改会话' : '可查看完整记录、分配客服或强制结束'}</small>
           </div>
         )}
       </div>
@@ -797,7 +849,6 @@ function AgentWorkDetail({ agent, sessions, onClose, onOpenConversation }) {
   return <div className="agent-work-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><aside className="agent-work-detail" role="dialog" aria-modal="true" aria-labelledby="agent-work-title"><div className="agent-work-head"><div><span className={`mini-avatar ${agent.status}`}>{agent.initials}</span><div><h2 id="agent-work-title">{agent.name} 的工作情况</h2><p>{agent.groups?.join(' · ') || '客服团队'} · {agent.statusText || '在线'}</p></div></div><button type="button" className="admin-icon-btn" aria-label="关闭客服详情" onClick={onClose}><AIcon name="close" /></button></div><div className="agent-work-metrics"><span><b>{sessions.filter((session) => ['human', 'ai'].includes(session.status)).length}</b>当前对接</span><span><b>{sessions.filter((session) => session.status === 'queued').length}</b>待接管</span><span><b>{agent.response || '—'}</b>平均首响</span></div><div className="agent-work-note">演示快照 · 会话数据来自本地工作台种子</div><h3>当前对接会话 <small>{filteredSessions.length}</small></h3><div className="agent-work-filters"><button type="button" className={queueType === 'all' ? 'active' : ''} onClick={() => setQueueType('all')}>全部</button><button type="button" className={queueType === 'after_sales' ? 'active' : ''} onClick={() => setQueueType('after_sales')}>售后</button><button type="button" className={queueType === 'pre_sales' ? 'active' : ''} onClick={() => setQueueType('pre_sales')}>售前</button></div><div className="agent-work-sessions">{filteredSessions.length ? filteredSessions.map((session) => { const type = getQueueType(session); return <article key={session.id}><div><strong>{session.name} · {session.channel} <em className={`agent-queue-type ${type.key}`}>{type.label}</em></strong><span>{type.reason} · {session.statusText} · {session.slaLabel} · {session.preview}</span></div><button type="button" onClick={() => onOpenConversation(session.id)}>打开会话</button></article> }) : <p>当前分类暂无已分配会话</p>}</div></aside></div>
 }
 function Operations({ onNotify }) { return <><div className="operation-highlight"><div><span>本月服务健康分</span><strong>94.6</strong><small>较上月提升 3.2%</small></div><div className="health-ring"><b>96.8%</b><span>SLA 达成</span></div><button className="admin-primary-btn" onClick={() => onNotify('服务报告已导出（演示）')}><AIcon name="download" size={14}/>导出服务报告</button></div><div className="admin-content-grid three"><SectionCard title="首响 SLA"><strong className="big-number">42<span>秒</span></strong><small>目标 ≤ 60 秒 · 达成率 97.2%</small><Progress value={97}/></SectionCard><SectionCard title="AI 转人工率"><strong className="big-number">17.4<span>%</span></strong><small>较上周下降 2.1%</small><Progress value={83}/></SectionCard><SectionCard title="质检通过率"><strong className="big-number">92.8<span>%</span></strong><small>已完成 128 / 138 个抽检</small><Progress value={93}/></SectionCard></div></> }
-function SettingsPanel({ onNotify }) { return <div className="settings-panel"><SectionHeader title="平台全局配置" subtitle="变更将影响所有机构，提交后会写入审计日志" /><div className="settings-form"><label>默认会话保留时长<select><option>180 天</option><option>365 天</option></select></label><label>全局 AI 安全模式<select><option>严格模式（推荐）</option><option>标准模式</option></select></label><label>默认首响 SLA<input defaultValue="60" /></label><label>通知邮箱<input defaultValue="ops@ai-service.demo" /></label></div><button className="admin-primary-btn" onClick={() => onNotify('全局配置已保存（演示）')}>保存配置</button></div> }
 function SectionHeader({ title, subtitle }) { return <div className="admin-section-head"><div><h2>{title}</h2><p>{subtitle}</p></div></div> }
 function SectionCard({ title, subtitle, action, children }) { return <section className="admin-section-card"><div className="admin-card-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action && <button className="admin-link-btn">{action} <AIcon name="arrow" size={13}/></button>}</div>{children}</section> }
 function ChartCard({ title, subtitle, children }) { return <SectionCard title={title} subtitle={subtitle}>{children}</SectionCard> }

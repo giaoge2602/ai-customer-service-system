@@ -31,7 +31,7 @@ const portalCopy = {
     recoveryDescription: '输入绑定邮箱，我们会发送密码重置指引。',
     routes: { login: '/admin/login', register: '/admin/register', recovery: '/admin/forgot-password' },
     crossPortal: { href: '/service/login', label: '前往客服与用户系统' },
-    metrics: [['24', '在线机构'], ['78.4%', 'AI 解决率'], ['99.95%', '服务可用性']],
+    metrics: [['24', '活跃机构'], ['78.4%', 'AI 解决率'], ['99.95%', '服务可用性']],
   },
 }
 
@@ -41,7 +41,7 @@ const portalCategories = {
     { key: 'customer', role: 'customer', icon: 'user', title: '客户', loginLabel: '用户登录', description: '注册为机构客户，发起在线咨询', table: 'customer 表' },
   ],
   admin: [
-    { key: 'platform', role: 'platform_admin', icon: 'shield', title: '超级管理员', loginLabel: '超级管理员', description: '管理机构、配额与全局配置', table: 'user 表' },
+    { key: 'platform', role: 'platform_admin', icon: 'shield', title: '超级管理员', loginLabel: '超级管理员', description: '管理机构、配额与平台运营', table: 'user 表' },
     { key: 'tenant', role: 'tenant_admin', icon: 'building', title: '机构管理员', loginLabel: '机构管理员', description: '管理客服团队与服务配置', table: 'user 表' },
   ],
 }

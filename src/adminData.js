@@ -1,5 +1,5 @@
 export const platformStats = [
-  { label: '机构总数', value: '28', sub: { label: '在线机构', value: '24', rate: '85.7%' }, tone: 'blue', icon: 'building' },
+  { label: '机构总数', value: '28', sub: { label: '活跃机构', value: '24', rate: '85.7%' }, tone: 'blue', icon: 'building' },
   { label: '客服总数', value: '156', sub: { label: '在线客服', value: '128', rate: '82.1%' }, tone: 'green', icon: 'users' },
   { label: '今日会话', value: '18,426', sub: { label: '长时会话', value: '23', rate: '0.12%' }, tone: 'purple', icon: 'chat' },
   { label: 'AI 接管率', value: '63.5%', sub: { label: 'AI 解决率', value: '78.4%' }, tone: 'orange', icon: 'spark' },
@@ -7,13 +7,13 @@ export const platformStats = [
 ]
 
 export const dashboardTrend = [
-  { label: '8/20', conversations: 14200, agents: 132, orgs: 26, onlineOrgs: 22 },
-  { label: '8/21', conversations: 15800, agents: 140, orgs: 27, onlineOrgs: 23 },
-  { label: '8/22', conversations: 13600, agents: 125, orgs: 27, onlineOrgs: 23 },
-  { label: '8/23', conversations: 16900, agents: 148, orgs: 27, onlineOrgs: 24 },
-  { label: '8/24', conversations: 17500, agents: 152, orgs: 28, onlineOrgs: 24 },
-  { label: '8/25', conversations: 16200, agents: 138, orgs: 28, onlineOrgs: 24 },
-  { label: '今天', conversations: 18426, agents: 156, orgs: 28, onlineOrgs: 24 },
+  { label: '8/20', conversations: 14200, agents: 132, orgs: 26, activeOrgs: 22 },
+  { label: '8/21', conversations: 15800, agents: 140, orgs: 27, activeOrgs: 23 },
+  { label: '8/22', conversations: 13600, agents: 125, orgs: 27, activeOrgs: 23 },
+  { label: '8/23', conversations: 16900, agents: 148, orgs: 27, activeOrgs: 24 },
+  { label: '8/24', conversations: 17500, agents: 152, orgs: 28, activeOrgs: 24 },
+  { label: '8/25', conversations: 16200, agents: 138, orgs: 28, activeOrgs: 24 },
+  { label: '今天', conversations: 18426, agents: 156, orgs: 28, activeOrgs: 24 },
 ]
 
 export const dashboardAlerts = [
@@ -26,13 +26,13 @@ export const dashboardAlerts = [
   { label: '今天', warnings: 3, errors: 1, resolved: 1 },
 ]
 
-export const todayRealtime = { orgs: 28, onlineOrgs: 24, agents: 156, onlineAgents: 128, conversations: 18426, aiHandled: 11682 }
+export const todayRealtime = { orgs: 28, activeOrgs: 24, newOrgs7d: 3, pendingOrgs: 1, agents: 156, onlineAgents: 128, conversations: 18426, aiHandled: 11682 }
 
 export const channelShare = [
-  { label: 'Web Widget', value: 8286, color: '#4163cb' },
-  { label: '微信公众号', value: 5124, color: '#22835d' },
-  { label: '企业微信', value: 3212, color: '#7656c9' },
-  { label: 'Open API', value: 1804, color: '#b6791a' },
+  { label: 'Web Widget', value: 8286, color: '#4163cb', change: 3.4 },
+  { label: '微信公众号', value: 5124, color: '#22835d', change: 1.8 },
+  { label: '企业微信', value: 3212, color: '#7656c9', change: -1.2 },
+  { label: 'Open API', value: 1804, color: '#b6791a', change: 0.8 },
 ]
 
 export const tokenTrend = [
@@ -256,6 +256,7 @@ export const routingRules = [
 export const orgRealtime = {
   activeConversations: 23,
   queueLength: 2,
+  totalAgents: 16,
   onlineAgents: 12,
   busyAgents: 8,
   idleAgents: 4,
@@ -274,10 +275,10 @@ export const orgTodayRealtime = {
 }
 
 export const orgChannelShare = [
-  { label: 'Web Widget', value: 1184, color: '#4163cb' },
-  { label: '微信公众号', value: 742, color: '#22835d' },
-  { label: '企业微信', value: 486, color: '#7656c9' },
-  { label: 'Open API', value: 434, color: '#b6791a' },
+  { label: 'Web Widget', value: 1184, color: '#4163cb', change: 2.6 },
+  { label: '微信公众号', value: 742, color: '#22835d', change: 1.1 },
+  { label: '企业微信', value: 486, color: '#7656c9', change: -0.9 },
+  { label: 'Open API', value: 434, color: '#b6791a', change: 1.4 },
 ]
 
 export const orgTokenTrend = [

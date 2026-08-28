@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AgentWorkspaceShell from './AgentWorkspaceShell'
 import SlaCountdown, { parseSlaToSeconds, slaRiskByLeft } from './SlaCountdown'
-import { loadPrototypeConfig, resolveServiceMode, savePrototypeConfig, transitionChat } from './prototype'
-import { deriveAgentWorkload, deriveCustomerDirectory, deriveQueue, filterQueueByAgent, conversationsSeed, teamSeed } from './workbenchData'
+import { loadPrototypeConfig, resolveServiceMode, savePrototypeConfig } from './prototype'
+import LogsView from './components/LogsView'
+import { deriveAgentWorkload, deriveQueue, filterQueueByAgent, conversationsSeed, teamSeed } from './workbenchData'
+import { readAccessToken } from './api'
+import { createConversationRealtime } from './conversationRealtime'
+import { createOrResumeConversation, endConversation, getConversation, listConversations, markConversationRead, sendConversationMessage, submitConversationEvaluation } from './conversationApi'
 
 const knowledge = [
   { title: '退款到账需要多久？', category: '退款售后', answer: '审核通过后，原路退回通常需要 3–5 个工作日。', hits: 238, status: '已启用' },
@@ -13,7 +17,7 @@ const knowledge = [
 
 function WorkspaceTop({ title, subtitle, session }) {
   const organization = session.role === 'platform_admin' ? '全平台视图' : session.tenantName || session.tenantId || '机构信息未返回'
-  return <header className="service-top"><div><p><strong>{organization}</strong><span>/</span>华东服务中心 <span>/</span> {subtitle}</p><h1>{title}</h1></div><span className="workspace-live-status"><i />{title === '客户目录' ? '本地演示数据' : '实时数据已连接'}</span></header>
+  return <header className="service-top"><div><p><strong>{organization}</strong><span>/</span>华东服务中心 <span>/</span> {subtitle}</p><h1>{title}</h1></div><span className="workspace-live-status"><i />实时数据已连接</span></header>
 }
 
 export default function ServiceWorkspace({ area, session, onLogout }) {
@@ -23,10 +27,10 @@ export default function ServiceWorkspace({ area, session, onLogout }) {
       ? { title: '企业知识库', subtitle: '知识运营' }
       : area === 'tickets'
         ? { title: '工单协同', subtitle: '跟进服务问题与升级事项' }
-        : area === 'customers'
-          ? { title: '客户目录', subtitle: '客户关系与历史咨询汇总' }
+        : area === 'serviceLogs'
+          ? { title: '服务日志', subtitle: '会话与 AI 应答的可观测性日志' }
           : { title: 'AI 与客户入口配置', subtitle: '服务策略' }
-  return <AgentWorkspaceShell active={area} session={session} onLogout={onLogout}><main className="service-main workspace-section-main"><WorkspaceTop title={page.title} subtitle={page.subtitle} session={session}/>{area === 'dashboard' ? <TeamDashboard session={session}/> : area === 'knowledge' ? <KnowledgeBase/> : area === 'tickets' ? <TicketWorkspace/> : area === 'customers' ? <CustomerDirectory session={session}/> : <ServiceSettings/>}</main></AgentWorkspaceShell>
+  return <AgentWorkspaceShell active={area} session={session} onLogout={onLogout}><main className="service-main workspace-section-main"><WorkspaceTop title={page.title} subtitle={page.subtitle} session={session}/>{area === 'dashboard' ? <TeamDashboard session={session}/> : area === 'knowledge' ? <KnowledgeBase/> : area === 'tickets' ? <TicketWorkspace/> : area === 'serviceLogs' ? <LogsView dataset="service" /> : <ServiceSettings/>}</main></AgentWorkspaceShell>
 }
 
 const ticketSeed = [
@@ -49,26 +53,6 @@ function TicketWorkspace() {
   return <div className="service-content ticket-content">
     <section className="metric-row compact">{[['全部工单', tickets.length, '本周新增 8'], ['待处理', tickets.filter((ticket) => ticket.status === 'pending').length, '需要及时跟进'], ['高优先级', tickets.filter((ticket) => ticket.priority !== 'normal' && ticket.status !== 'resolved').length, '含 1 个紧急事项'], ['已解决', tickets.filter((ticket) => ticket.status === 'resolved').length, '本周解决率 92%']].map(([label, value, note]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}</section>
     <section className="surface ticket-surface"><div className="surface-head"><div><h2>服务工单</h2><p>集中跟进会话中的异常、投诉与协同事项</p></div><span className="demo-badge">演示数据</span></div><div className="ticket-toolbar"><div className="ticket-filters" role="group" aria-label="工单状态筛选">{[['all', '全部'], ['pending', '待处理'], ['processing', '处理中'], ['resolved', '已解决']].map(([value, label]) => <button type="button" key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="ticket-count">共 {filtered.length} 条</span></div><div className="ticket-list">{filtered.map((ticket) => <article className="ticket-row" key={ticket.id}><div className="ticket-main"><div className="ticket-id">{ticket.id}<span className={`ticket-priority ${ticket.priority}`}>{ticket.priorityText}</span></div><h3>{ticket.title}</h3><p>关联会话 {ticket.conversationId} · 负责人 {ticket.owner}</p></div><span className={`ticket-status ${ticket.status}`}>{ticket.statusText}</span><time>{ticket.updated}</time><div className="ticket-actions"><button type="button" onClick={() => navigate(`/workbench/${ticket.conversationId}`)}>查看会话</button>{ticket.status !== 'resolved' && <button type="button" onClick={() => updateStatus(ticket.id, ticket.status === 'pending' ? 'processing' : 'resolved')}>{ticket.status === 'pending' ? '开始处理' : '标记解决'}</button>}</div></article>)}{filtered.length === 0 && <div className="ticket-empty">当前筛选下暂无工单</div>}</div></section>{notice && <div className="prototype-toast" role="status">✓ {notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}</div>
-}
-
-function CustomerDirectory({ session }) {
-  const navigate = useNavigate()
-  const customers = useMemo(() => deriveCustomerDirectory(conversationsSeed, session.role === 'platform_admin' ? null : session.tenantId), [session.role, session.tenantId])
-  const [query, setQuery] = useState('')
-  const [level, setLevel] = useState('all')
-  const [channel, setChannel] = useState('all')
-  const [selectedId, setSelectedId] = useState(customers[0]?.id || '')
-  const selected = customers.find((customer) => customer.id === selectedId) || customers[0]
-  const filtered = customers.filter((customer) => {
-    const haystack = `${customer.id} ${customer.name} ${customer.phone} ${customer.email} ${customer.source} ${customer.tags.join(' ')} ${customer.latestPreview}`.toLowerCase()
-    return haystack.includes(query.toLowerCase()) && (level === 'all' || customer.level.includes(level)) && (channel === 'all' || customer.channels.includes(channel))
-  })
-  const clearFilters = () => { setQuery(''); setLevel('all'); setChannel('all') }
-  return <div className="service-content customer-directory">
-    <section className="metric-row compact">{[['客户总数', customers.length, '来自本地会话记录'], ['近期活跃', customers.filter((customer) => customer.latestStatus !== 'ended').length, '有进行中的服务'], ['VIP / 高价值', customers.filter((customer) => customer.level.includes('VIP') || customer.level.includes('高价值')).length, '重点客户'], ['历史会话', customers.reduce((sum, customer) => sum + customer.sessionCount, 0), '已汇总会话']].map(([label, value, note]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}</section>
-    <div className="directory-notice"><span>演示数据</span><p>基于本地客服会话记录汇总，后续可接入客户 API。</p></div>
-    <section className="surface directory-surface"><div className="directory-toolbar"><div className="directory-search"><span>⌕</span><input aria-label="搜索客户" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索姓名、客户 ID、标签或最近咨询" /></div><select aria-label="客户等级筛选" value={level} onChange={(event) => setLevel(event.target.value)}><option value="all">全部等级</option><option value="VIP">VIP 客户</option><option value="高价值">高价值客户</option><option value="普通">普通客户</option><option value="新客户">新客户</option></select><select aria-label="来源渠道筛选" value={channel} onChange={(event) => setChannel(event.target.value)}><option value="all">全部渠道</option>{[...new Set(customers.flatMap((customer) => customer.channels))].map((item) => <option key={item} value={item}>{item}</option>)}</select><button type="button" className="directory-clear" onClick={clearFilters}>清除筛选</button></div><div className="directory-layout"><div className="directory-list"><div className="directory-list-head"><strong>客户通讯录</strong><span>{filtered.length} 位客户</span></div>{filtered.map((customer) => <button type="button" key={customer.id} className={`directory-row ${selected?.id === customer.id ? 'selected' : ''}`} onClick={() => setSelectedId(customer.id)} aria-pressed={selected?.id === customer.id}><span className={`directory-avatar ${customer.tone}`}>{customer.initials}</span><span className="directory-row-main"><strong>{customer.name}<small>{customer.id}</small></strong><span>{customer.latestPreview}</span><em>{customer.latestStatusText} · {customer.sessionCount} 次会话</em></span><span className="directory-row-time">{customer.latestTime}</span></button>)}{filtered.length === 0 && <div className="directory-empty"><strong>没有匹配的客户</strong><span>尝试调整关键词或筛选条件</span><button type="button" onClick={clearFilters}>清除筛选</button></div>}</div>{selected && <aside className="directory-detail"><div className="directory-detail-head"><span className={`directory-avatar large ${selected.tone}`}>{selected.initials}</span><div><h2>{selected.name}</h2><p>{selected.id} · {selected.level}</p></div></div><div className="directory-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><div className="directory-fields"><div><span>来源渠道</span><strong>{selected.source}</strong></div><div><span>联系电话</span><strong>{selected.phone}</strong></div><div><span>邮箱</span><strong>{selected.email}</strong></div><div><span>满意度</span><strong>{selected.satisfaction === '—' ? '暂无评价' : `${selected.satisfaction} / 5`}</strong></div></div><div className="directory-summary"><span>最近咨询</span><p>{selected.latestPreview}</p><small>{selected.latestTime} · {selected.latestStatusText}</small></div><h3>相关会话 <small>{selected.conversations.length}</small></h3><div className="directory-sessions">{selected.conversations.map((conversation) => <div className="directory-session" key={conversation.id}><div><strong>{conversation.id}</strong><span>{conversation.channel} · {conversation.statusText}</span></div><button type="button" onClick={() => navigate(`/workbench/${conversation.id}`)}>查看会话</button></div>)}</div></aside>}</div></section>
-  </div>
 }
 
 function TeamDashboard({ session }) {
@@ -314,17 +298,89 @@ function ServiceSettings() {
   return <div className="service-content settings-grid"><section className="surface settings-form"><div className="surface-head"><div><h2>非工作时间 AI 接管</h2><p>工作时段人工优先，下班后由 AI 基于企业知识库接待</p></div><label className="switch"><input type="checkbox" checked={aiEnabled} onChange={(event) => setAiEnabled(event.target.checked)}/><span/></label></div><div className="time-fields"><label>开始时间<input type="time" value={start} onChange={(e) => setStart(e.target.value)}/></label><span>至</span><label>结束时间<input type="time" value={end} onChange={(e) => setEnd(e.target.value)}/></label></div><div className="mode-note"><span className={mode}>{mode === 'ai' ? 'AI' : '人'}</span><div><strong>当前演示时间 20:15 · {mode === 'ai' ? 'AI 客服接待中' : '人工服务模式'}</strong><p>{mode === 'ai' ? '未解决问题将在下个工作日进入“待跟进”列表。' : '客户咨询将进入人工客服排队队列。'}</p></div></div><div className="setting-divider"/><h2>客户入口界面配置</h2><div className="config-fields"><label>欢迎语<input value={welcome} onChange={(e) => setWelcome(e.target.value)}/></label><label>品牌主题色<input type="color" value={theme} onChange={(e) => setTheme(e.target.value)}/></label><label>窗口位置<select><option>右下角</option><option>左下角</option></select></label><label>入口形态<select><option>气泡展开</option><option>横条展开</option><option>独立窗口</option></select></label></div><div className="theme-toggle"><span>预览主题</span><button className={!dark ? 'active' : ''} onClick={() => setDark(false)}>浅色</button><button className={dark ? 'active' : ''} onClick={() => setDark(true)}>深色</button></div><div className="publish-row"><button className="ghost" onClick={() => setNotice('配置草稿已保存')}>保存草稿</button><button onClick={publish}>发布配置</button></div></section><aside className="surface live-preview"><div className="preview-head"><div><h2>实时预览</h2><p>桌面端 · Web Widget</p></div><a href={`${window.location.origin}${window.location.pathname}#/customer/chat`} target="_blank" rel="noreferrer">独立窗口 ↗</a></div><div className={`widget-preview ${dark ? 'dark' : ''}`}><header style={{background:theme}}><span className="bot-orb">AI</span><strong>星河智能客服<small><i/>{mode === 'ai' ? 'AI 客服在线' : '人工客服在线'}</small></strong><button>—</button></header><div className="preview-chat"><p className="preview-time">今天 20:15</p><div className="bot-message">{welcome}<small>{mode === 'ai' ? '当前为非工作时间，AI 客服为您服务。' : '人工客服在线，很高兴为您服务。'}</small></div><div className="quick-question"><button>退款多久到账？</button><button>企业版如何部署？</button></div></div><footer><span>输入您的问题...</span><button style={{background:theme}}>➤</button></footer></div><p className="preview-tip">配置保存后，Widget 与独立聊天窗口同步更新。</p></aside>{notice && <div className="prototype-toast" role="status">✓ {notice}<button onClick={() => setNotice('')}>×</button></div>}</div>
 }
 
-export function CustomerChat({ onLogout }) {
+export function CustomerChat({ session, onLogout, client, initialChannel }) {
   const config = useMemo(() => loadPrototypeConfig(), [])
-  const serviceMode = config.aiEnabled && resolveServiceMode('20:15', config) === 'ai' ? 'ai' : 'human'
-  const [status, setStatus] = useState('welcome')
+  const rest =
+    client?.rest ||
+    { listConversations, getConversation, createOrResumeConversation, sendConversationMessage, markConversationRead, endConversation, submitConversationEvaluation }
+  const openRealtime = client
+    ? (conversationId) => client.openRealtime(conversationId)
+    : (conversationId) => createConversationRealtime({ token: readAccessToken(), onReconnect: loadCurrent })
+  const [conversation, setConversation] = useState(null)
   const [draft, setDraft] = useState('')
-  const [messages, setMessages] = useState([])
-  const [rating, setRating] = useState(0)
+  const [rating, setRating] = useState('')
   const [ratingText, setRatingText] = useState('')
-  const [showThanks, setShowThanks] = useState(false)
-  const start = (text = '我想咨询退款到账时间') => { if (!text.trim()) return; setMessages([{ from: 'customer', text: text.trim() }, { from: 'system', text: serviceMode === 'ai' ? '当前为非工作时间，AI 客服正在检索企业知识库…' : '正在为您连接在线客服…' }]); setStatus(transitionChat('welcome','start')); window.setTimeout(() => { setMessages((list) => [...list, { from: 'agent', text: serviceMode === 'ai' ? '退款审核通过后通常会在 3–5 个工作日原路到账。若已超过 5 个工作日，我可以为您记录并交由人工客服跟进。' : '您好，我是客服李楠，很高兴为您服务。请问可以提供订单号吗？' }]); setStatus(transitionChat('queued','accept')) }, 700) }
-  const send = () => { if (!draft.trim() || status !== 'handling') return; setMessages((list) => [...list, { from: 'customer', text: draft.trim() }]); setDraft('') }
-  const finish = () => setStatus(transitionChat('handling','finish'))
-  return <main className="customer-page"><div className="customer-backdrop"><div className="customer-copy"><span>星河科技 · 客户服务</span><h1>有问题，随时问我们。</h1><p>人工客服与 AI 助手协同在线，咨询记录会安全地保存在您的服务会话中。</p><div><b>7×24</b> 智能接待 <b>3 分钟</b> 平均响应</div></div></div><section className="customer-chat"><header style={{background:config.theme}}><span className="bot-orb">星</span><strong>星河客户服务<small><i/> {status === 'queued' ? (serviceMode === 'ai' ? 'AI 正在分析问题' : '排队中 · 前方 1 人') : status === 'handling' ? (serviceMode === 'ai' ? 'AI 客服正在为您服务' : '李楠正在为您服务') : (serviceMode === 'ai' ? 'AI 客服在线' : '人工客服在线')}</small></strong><button type="button" onClick={onLogout}>退出登录</button></header><div className="customer-messages"><p className="preview-time">今天 20:15</p>{status === 'welcome' && <><div className="agent-bubble">{config.welcome}。请选择常见问题或直接输入您的问题。</div><div className="customer-quick"><button onClick={() => start('退款多久到账？')}>退款多久到账？</button><button onClick={() => start('企业版支持私有化部署吗？')}>企业版支持私有化部署吗？</button><button onClick={() => start('如何修改登录密码？')}>如何修改登录密码？</button></div></>}{messages.map((message,index) => <div key={index} className={`${message.from}-bubble`}>{message.text}</div>)}{status === 'ended' || status === 'evaluated' ? <div className="rating-card">{status === 'evaluated' && showThanks ? <div className="rating-thanks" role="status"><span>✓</span><strong>感谢您的反馈</strong><p>您的评价已提交，我们将持续改进服务</p></div> : <>{status === 'evaluated' ? <strong>已提交评价，感谢您的反馈</strong> : <strong>本次服务已结束</strong>}<p>这次服务是否解决了您的问题？</p><div>{[1,2,3,4,5].map((star) => <button key={star} className={star <= rating ? 'active' : ''} onClick={() => setRating(star)}>★</button>)}</div><textarea className="rating-text" value={ratingText} onChange={(e) => setRatingText(e.target.value)} placeholder="还有什么想说的？（选填）" /><button className="rating-submit" disabled={!rating || status === 'evaluated'} onClick={() => { setStatus(transitionChat('ended','rate')); setShowThanks(true); window.setTimeout(() => setShowThanks(false), 2000) }}>提交评价</button></>}</div> : null}</div><footer><button aria-label="上传图片">＋</button><input aria-label="输入消息" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (status === 'welcome' ? start(draft) : send())} placeholder="输入您的问题..."/><button className="chat-send" style={{background:config.theme}} onClick={() => status === 'welcome' ? start(draft) : send()}>发送</button></footer>{status === 'handling' && <button className="finish-chat" onClick={finish}>结束本次会话</button>}<p className="privacy-note">由 AI 智能客服系统提供支持 · 隐私数据已加密保护</p></section></main>
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const [connected, setConnected] = useState(false)
+
+  const loadCurrent = async () => {
+    try {
+      const result = await rest.listConversations({ pageSize: 20 })
+      const active = result.items.find((item) =>
+        ['queued', 'human'].includes(item.status) ||
+        (item.status === 'ended' && item.evaluationPresentedAt),
+      )
+      if (!active) { setConversation(null); return }
+      const detail = await rest.getConversation(active.id)
+      setConversation(detail)
+      const latest = detail.messages.at(-1)?.sequence
+      if (latest !== undefined) await rest.markConversationRead(detail.id, latest)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadCurrent() }, [])
+  useEffect(() => {
+    const token = client ? client.getToken?.() : readAccessToken()
+    if (!token) return undefined
+    const realtime = openRealtime(conversation?.id)
+    setConnected(realtime.isConnected())
+    const refresh = () => loadCurrent()
+    const unsubscribers = ['message.created', 'conversation.claimed', 'conversation.ended', 'evaluation.visible', 'evaluation.submitted'].map((name) => realtime.subscribe(name, refresh))
+    if (conversation?.id) realtime.join(conversation.id).then(() => setConnected(true))
+    return () => { unsubscribers.forEach((unsubscribe) => unsubscribe()); realtime.close() }
+  }, [conversation?.id])
+
+  const send = async (text = draft) => {
+    const content = text.trim()
+    // 已结束会话允许客户继续补充消息（不重开会话、不重算超时）；已评价只读
+    if (!content || sending || conversation?.status === 'evaluated') return
+    setSending(true)
+    setError('')
+    try {
+      if (!conversation) {
+        const created = await rest.createOrResumeConversation({ firstMessage: content, clientMessageId: crypto.randomUUID(), ...(initialChannel ? { channel: initialChannel } : {}) })
+        setConversation(await rest.getConversation(created.id))
+      } else {
+        await rest.sendConversationMessage(conversation.id, { content, clientMessageId: crypto.randomUUID() })
+        setConversation(await rest.getConversation(conversation.id))
+      }
+      setDraft('')
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const finish = async () => {
+    if (!conversation) return
+    try { await rest.endConversation(conversation.id); await loadCurrent() } catch (requestError) { setError(requestError.message) }
+  }
+  const submitRating = async () => {
+    if (!conversation || !rating) return
+    try {
+      await rest.submitConversationEvaluation(conversation.id, { rating, ...(ratingText.trim() ? { comment: ratingText.trim() } : {}) })
+      setConversation(await rest.getConversation(conversation.id))
+    } catch (requestError) { setError(requestError.message) }
+  }
+
+  const statusText = !conversation ? '人工客服在线' : conversation.status === 'queued' ? '正在排队等待客服' : conversation.status === 'human' ? `${conversation.agent?.name || '客服'} 正在为您服务` : '本次会话已结束'
+  const evaluationVisible = Boolean(conversation?.evaluationPresentedAt) && conversation?.status !== 'evaluated'
+  return <main className="customer-page"><div className="customer-backdrop"><div className="customer-copy"><span>{session?.tenantName || '星河科技'} · 客户服务</span><h1>有问题，随时问我们。</h1><p>人工客服会实时处理您的咨询，聊天记录将安全保存在服务会话中。</p><div><b>真实会话</b> 持久保存 <b>实时</b> 消息同步</div></div></div><section className="customer-chat"><header style={{background:config.theme}}><span className="bot-orb">星</span><strong>星河客户服务<small><i/> {statusText} · {connected ? '实时已连接' : '正在连接'}</small></strong><button type="button" onClick={onLogout}>退出登录</button></header><div className="customer-messages"><p className="preview-time">{loading ? '正在加载历史会话…' : '当前会话'}</p>{!loading && !conversation && <><div className="agent-bubble">{config.welcome}。请选择常见问题或直接输入您的问题。</div><div className="customer-quick"><button onClick={() => send('退款多久到账？')}>退款多久到账？</button><button onClick={() => send('企业版支持私有化部署吗？')}>企业版支持私有化部署吗？</button><button onClick={() => send('如何修改登录密码？')}>如何修改登录密码？</button></div></>}{conversation?.messages?.map((message) => <div key={message.id} className={`${message.senderType}-bubble`}>{message.content}</div>)}{error && <div className="system-bubble">{error}</div>}{evaluationVisible && <div className="rating-card"><strong>请评价本次服务</strong><p>您的评价将直接结束本次会话。</p><div>{[['very_satisfied','非常满意'],['satisfied','满意'],['neutral','一般'],['dissatisfied','不满意']].map(([value,label]) => <button key={value} className={rating === value ? 'active' : ''} onClick={() => setRating(value)}>{label}</button>)}</div><textarea className="rating-text" maxLength={200} value={ratingText} onChange={(event) => setRatingText(event.target.value)} placeholder="还有什么想说的？（选填）"/><button className="rating-submit" disabled={!rating} onClick={submitRating}>提交评价并结束</button></div>}{conversation?.status === 'evaluated' && <div className="rating-thanks" role="status"><span>✓</span><strong>感谢您的反馈</strong><p>评价已提交，本次会话已经结束</p></div>}</div><footer><button aria-label="仅支持文本消息" disabled>＋</button><input aria-label="输入消息" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} disabled={sending || conversation?.status === 'evaluated'} placeholder={conversation?.status === 'evaluated' ? '评价已完成，会话只读' : conversation?.status === 'ended' ? '会话已结束 · 仍可补充消息' : '输入您的问题...'}/><button className="chat-send" style={{background:config.theme}} disabled={sending || !draft.trim()} onClick={() => send()}>发送</button></footer>{conversation && ['queued','human'].includes(conversation.status) && <button className="finish-chat" onClick={finish}>结束本次会话</button>}<p className="privacy-note">人工会话已持久化 · 断线重连后自动同步</p></section></main>
 }

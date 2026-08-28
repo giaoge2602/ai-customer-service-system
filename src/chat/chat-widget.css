@@ -1,0 +1,312 @@
+/* 免登录悬浮客服窗口 · 独立样式（不依赖 prototype.css 的页面栅格） */
+
+.csw-container {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
+}
+
+.csw-orb {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  transition: transform 0.15s ease;
+}
+.csw-orb:hover {
+  transform: scale(1.05);
+}
+
+.csw-orb-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.9;
+}
+
+.csw-panel {
+  position: absolute;
+  right: 0;
+  bottom: 72px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  height: 500px;
+  max-height: min(70vh, 620px);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csw-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  color: #fff;
+}
+.csw-head .csw-orb-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.csw-head strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.csw-head small {
+  display: block;
+  font-weight: 400;
+  opacity: 0.9;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.csw-head button {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}
+
+.csw-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  background: #f6f8fb;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.csw-welcome {
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #eef2ff;
+  color: #2a3350;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.csw-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.csw-quick button {
+  border: 1px solid #dbe2f0;
+  background: #fff;
+  color: #35407a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.csw-quick button:hover {
+  border-color: #9db2e6;
+}
+
+.csw-msg {
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.csw-agent {
+  align-self: flex-start;
+  background: #fff;
+  color: #2a3350;
+  border: 1px solid #e8edf7;
+}
+.csw-customer {
+  align-self: flex-end;
+  background: var(--csw-theme, #315bea);
+  color: #fff;
+}
+.csw-system {
+  align-self: center;
+  background: #eef0f4;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.csw-error {
+  align-self: center;
+  color: #b4543a;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.csw-rating {
+  align-self: center;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e8edf7;
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.csw-rating strong {
+  font-size: 14px;
+  color: #2a3350;
+}
+.csw-rating p {
+  margin: 0;
+  font-size: 12px;
+  color: #8a93a6;
+}
+.csw-rating .csw-options {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.csw-rating button {
+  border: 1px solid #dbe2f0;
+  background: #f7f9fd;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #35407a;
+}
+.csw-rating button.active {
+  background: var(--csw-theme, #315bea);
+  border-color: var(--csw-theme, #315bea);
+  color: #fff;
+}
+.csw-rating textarea {
+  width: 100%;
+  border: 1px solid #dbe2f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  resize: none;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+.csw-rating .csw-submit {
+  background: var(--csw-theme, #315bea);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.csw-rating .csw-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csw-thanks {
+  align-self: center;
+  text-align: center;
+  color: #35407a;
+}
+.csw-thanks .csw-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.csw-thanks strong {
+  font-size: 14px;
+}
+.csw-thanks p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8a93a6;
+}
+
+.csw-inputbar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #eef0f4;
+  background: #fff;
+}
+.csw-inputbar input {
+  flex: 1;
+  border: 1px solid #e1e6f0;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 13px;
+  outline: none;
+  background: #f7f9fd;
+}
+.csw-inputbar input:focus {
+  border-color: #9db2e6;
+}
+.csw-inputbar button {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 16px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.csw-inputbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.csw-inputbar button.csw-nosend {
+  background: #eef0f4;
+  color: #9aa2b0;
+  cursor: not-allowed;
+}
+
+.csw-loading {
+  align-self: center;
+  color: #8a93a6;
+  font-size: 13px;
+  padding: 12px;
+}
+
+.csw-muted {
+  align-self: center;
+  color: #a0a7b4;
+  font-size: 12px;
+  padding: 8px 0 2px;
+}
+
+@media (max-width: 480px) {
+  .csw-container {
+    right: 16px;
+    bottom: 16px;
+  }
+}

@@ -239,8 +239,7 @@ export function canAccessPath(role, pathname) {
   if (pathname.startsWith('/platform')) return role === 'platform_admin'
   if (pathname.startsWith('/organization')) return role === 'platform_admin' || role === 'tenant_admin'
   if (pathname.startsWith('/customer')) return role === 'customer'
-  if (pathname.startsWith('/workbench/customers')) return ['platform_admin', 'tenant_admin', 'agent'].includes(role)
-  if (pathname.startsWith('/workbench/tickets')) return ['platform_admin', 'tenant_admin', 'agent'].includes(role)
+  if (['/workbench/tickets', '/workbench/service-logs'].some((path) => pathname.startsWith(path))) return ['platform_admin', 'tenant_admin', 'agent'].includes(role)
   if (['/workbench/knowledge', '/workbench/settings'].some((path) => pathname.startsWith(path))) {
     return role === 'platform_admin' || role === 'tenant_admin'
   }

@@ -1,7 +1,7 @@
 const API_BASE = '/api/v1'
 const SESSION_KEY = 'ai-customer-service-session'
 
-function readAccessToken() {
+export function readAccessToken() {
   try {
     const session = JSON.parse(window.sessionStorage.getItem(SESSION_KEY))
     return session?.accessToken || ''
@@ -10,7 +10,7 @@ function readAccessToken() {
   }
 }
 
-async function authRequest(path, options = {}) {
+export async function authRequest(path, options = {}) {
   const token = readAccessToken()
   let response
   try {
@@ -85,5 +85,41 @@ export async function updateTenant(id, payload) {
   return authRequest(`/tenants/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  })
+}
+
+// ==================== 客户管理中心（超级管理员） ====================
+
+export async function fetchCustomers(params = {}) {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', params.page)
+  if (params.pageSize) query.set('pageSize', params.pageSize)
+  if (params.search) query.set('search', params.search)
+  if (params.tenantId) query.set('tenantId', params.tenantId)
+  const suffix = query.toString() ? `?${query}` : ''
+  return authRequest(`/customers${suffix}`)
+}
+
+export async function fetchCustomer(id, tenantId) {
+  return authRequest(`/customers/${id}?tenantId=${encodeURIComponent(tenantId)}`)
+}
+
+export async function createCustomer(payload) {
+  return authRequest('/customers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCustomer(id, payload, tenantId) {
+  return authRequest(`/customers/${id}?tenantId=${encodeURIComponent(tenantId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteCustomer(id, tenantId) {
+  return authRequest(`/customers/${id}?tenantId=${encodeURIComponent(tenantId)}`, {
+    method: 'DELETE',
   })
 }

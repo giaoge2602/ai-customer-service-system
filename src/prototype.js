@@ -1,11 +1,11 @@
-const WORK_AREAS = new Set(['dashboard', 'knowledge', 'tickets', 'customers', 'settings'])
+const WORK_AREAS = new Set(['dashboard', 'knowledge', 'tickets', 'serviceLogs', 'settings'])
 
 const WORKSPACE_NAV_ITEMS = [
   { id: 'conversations', label: '会话工作台', path: '/workbench', icon: 'chat', badge: '12', group: 'workspace' },
-  { id: 'customers', label: '客户目录', path: '/workbench/customers', icon: 'users', group: 'workspace', roles: ['agent', 'platform_admin', 'tenant_admin'] },
   { id: 'dashboard', label: '客服看板', path: '/workbench/dashboard', icon: 'chart', group: 'workspace' },
   { id: 'knowledge', label: '知识库', path: '/workbench/knowledge', icon: 'book', group: 'resources', roles: ['platform_admin', 'tenant_admin'] },
   { id: 'tickets', label: '工单协同', path: '/workbench/tickets', icon: 'ticket', badge: '3', group: 'resources', roles: ['agent', 'platform_admin', 'tenant_admin'] },
+  { id: 'serviceLogs', label: '服务日志', path: '/workbench/service-logs', icon: 'clock', group: 'resources' },
   { id: 'settings', label: 'AI 与界面配置', path: '/workbench/settings', icon: 'settings', group: 'settings', roles: ['platform_admin', 'tenant_admin'] },
 ]
 
@@ -16,6 +16,7 @@ export function getAgentWorkspaceNav(role) {
 
 export function getWorkArea(pathname) {
   const segment = pathname.split('/').filter(Boolean)[1]
+  if (segment === 'service-logs') return 'serviceLogs'
   return WORK_AREAS.has(segment) ? segment : 'conversations'
 }
 

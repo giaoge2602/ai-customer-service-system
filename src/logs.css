@@ -1,0 +1,30 @@
+/* 可观测性日志板块：三端共用（平台系统日志 / 机构操作日志 / 工作台服务日志） */
+.logs-view{display:flex;flex-direction:column;gap:14px}
+.logs-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.logs-summary article{background:#fff;border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+.logs-summary span{font-size:10px;color:#77859a;display:block}
+.logs-summary strong{display:block;font-size:22px;color:#26364e;margin-top:6px;font-variant-numeric:tabular-nums}
+.logs-summary article.warn strong{color:#ad741a}
+.logs-summary article.err strong{color:#c24d48}
+.logs-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.logs-search{height:36px;display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;flex:1;max-width:340px;color:#8b98aa;font-size:13px}
+.logs-search input{border:0;outline:0;min-width:0;flex:1;font-size:11px;color:var(--ink)}
+.logs-toolbar select{height:36px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;color:#69778b;font-size:11px}
+.logs-clear,.logs-export{height:36px;border-radius:6px;font-size:11px;padding:0 12px;display:inline-flex;align-items:center}
+.logs-clear{border:0;background:transparent;color:var(--primary)}
+.logs-export{border:1px solid var(--line);background:#fff;color:#58677b}
+.logs-export:hover{border-color:#9eadd0;color:var(--primary)}
+.logs-count{font-size:10px;color:#98a5b6;margin-left:auto}
+.logs-table{min-width:720px}
+.logs-table th:nth-child(2),.logs-table td:nth-child(2){width:64px}
+.log-row{cursor:pointer}
+.log-row.open td{background:#f7faff}
+.logs-table .table-name{flex-direction:column;gap:1px}
+.log-event{white-space:normal!important;min-width:220px}
+.log-detail td{background:#fafcff;border-top:1px dashed var(--line-soft);white-space:normal!important}
+.log-detail p{margin:0;color:#5b6a7e;font-size:11px;line-height:1.8}
+.log-empty{text-align:center;color:#93a0b1!important;padding:34px 0!important;white-space:normal!important}
+.log-code{font-family:Consolas,"SFMono-Regular",Menlo,monospace;font-size:9px;color:#4c68bb;background:#eef2ff;border-radius:4px;padding:2px 6px}
+.logs-note{font-size:10px;color:#a2adbd;margin:0}
+@media(max-width:1100px){.logs-summary{grid-template-columns:repeat(2,1fr)}.logs-search{max-width:none}}
+@media(max-width:760px){.logs-summary{gap:8px}.logs-count{width:100%;margin-left:0}}

@@ -2,6 +2,37 @@
 
 本文件使用**中文**记录每个版本的任务产出、功能新增与修复内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 惯例。
 
+## [v0.5.0] - 2026-08-28
+
+### ✨ 新增：人工会话闭环 + 客户多端对接待办 SDK
+
+本次迭代打通「免登录访客 → 会话建立 → 人工/实时接待 → 结束评价」的**人工会话闭环**，并沉淀一套可对接第三方小程序 / H5 / 网页的**对话客户端 SDK**。
+
+#### 新增功能
+
+**客户多端对接待办（免登录访客聊天）**
+- `/visitor/chat` 免登录访客聊天窗口（`CustomerChatWidget`，支持 `autoOpen`，可注入 tenantId/channel）
+- `chatClient.js` 对话客户端 SDK：访客 session 存独立 localStorage key（不覆盖坐席/管理员登录态），`ensureGuestSession` 用客户端 UUID 幂等收敛匿名客户并签发 JWT（TTL 7 天），`createChatClient` 组合 REST + Realtime，`getToken` 可注入
+- `conversationApi.js` 会话 REST：`listConversations` / `createOrResumeConversation` + DTO 归一化（`normalizeMessage` / `normalizeConversation`）
+- `conversationRealtime.js` 实时层：Socket.IO 覆盖 10 类事件（会话创建/接管/释放/分配/结束、消息创建/已读、评价调度/可见/提交），事件 ID 去重（上限 500）+ 断线重连
+- 新增依赖 `socket.io-client@^4.8.3`
+
+**客服工作台扩展**
+- 服务日志（`/workbench/service-logs`）：客服操作与系统事件日志视图（`LogsView`）
+- 客户目录升级：`CustomerCenter` 组件
+- 看板洞察：`dashboardInsights.js` 机构/客服/渠道占比、AI 处理率等对比指标
+
+**工程化与文档**
+- 单元测试扩展至 **66 个用例**（新增 `chatClient.test.js`、`conversationApi.test.js`、`conversationRealtime.test.js`、`dashboardInsights.test.js`），`npm test` 全绿
+- `docs/client-integration.md`：客户多端对接待办接口接入说明（访客会话、REST + Socket.IO 实时对账）
+- `output/客服会话处理流程图.json`：会话处理流程可视化
+- 此前已规划提交：`docs/superpowers/` 新增人工会话闭环设计规格与实施计划（e9c4f8b / f68e96a）
+- README 同步更新（访客聊天、SDK、新组件与 66 用例）
+
+#### 技术说明
+- HTTPS REST 为权威数据源，Socket.IO 仅作实时提示，断线后用 REST 对账
+- 访客会话与登录态完全隔离，互不覆盖，多端可同时使用
+
 ## [v0.4.0] - 2026-08-26
 
 ### ✨ 新增：注册审核中心 + AI 一键接管 + 实时运营大屏

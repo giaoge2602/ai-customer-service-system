@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "AI 智能客服会话处理流程",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "legend": { "mode": "hidden" },
+    "viewBox": [960, 460]
+  },
+  "lanes": [
+    { "id": "customer", "label": "客户" },
+    { "id": "identity", "label": "访客身份服务" },
+    { "id": "conversation-service", "label": "会话服务" },
+    { "id": "routing", "label": "服务路由" },
+    { "id": "reception", "label": "AI / 人工客服" }
+  ],
+  "phases": [
+    { "id": "start", "label": "发起咨询", "fromCol": 0, "toCol": 1 },
+    { "id": "serve", "label": "接待与处理", "fromCol": 2, "toCol": 4, "variant": "emphasis" },
+    { "id": "finish", "label": "结束与评价", "fromCol": 5, "toCol": 5 }
+  ],
+  "mainPath": ["open-chat", "guest-session", "conversation", "route-mode", "reply", "end", "evaluate"],
+  "nodes": [
+    { "id": "open-chat", "lane": "customer", "col": 0, "type": "frontend", "label": "打开聊天入口", "sublabel": "Web / H5 / 小程序" },
+    { "id": "guest-session", "lane": "identity", "col": 1, "type": "security", "label": "获取访客会话", "sublabel": "/guest/session" },
+    { "id": "conversation", "lane": "conversation-service", "col": 2, "type": "backend", "label": "创建或恢复会话", "sublabel": "/conversations" },
+    { "id": "route-mode", "lane": "routing", "col": 3, "type": "backend", "label": "判定服务模式", "sublabel": "工作时间与客服负载" },
+    { "id": "reply", "lane": "reception", "col": 4, "type": "messagebus", "label": "实时消息往返", "sublabel": "AI 接管或人工接待" },
+    { "id": "end", "lane": "conversation-service", "col": 5, "type": "backend", "label": "结束会话", "sublabel": "/conversations/:id/end" },
+    { "id": "evaluate", "lane": "customer", "col": 5, "type": "frontend", "label": "提交服务评价", "sublabel": "POST /evaluation" }
+  ],
+  "edges": [
+    { "from": "open-chat", "to": "guest-session", "role": "main" },
+    { "from": "guest-session", "to": "conversation", "role": "main" },
+    { "from": "conversation", "to": "route-mode", "role": "main" },
+    { "from": "route-mode", "to": "reply", "role": "main" },
+    { "from": "reply", "to": "end", "role": "main" },
+    { "from": "end", "to": "evaluate", "role": "main" }
+  ]
+}
