@@ -45,14 +45,69 @@ function TicketWorkspace() {
   const [filter, setFilter] = useState('all')
   const [notice, setNotice] = useState('')
   const filtered = filter === 'all' ? tickets : tickets.filter((ticket) => ticket.status === filter)
+  const pending = tickets.filter((ticket) => ticket.status === 'pending').length
+  const processing = tickets.filter((ticket) => ticket.status === 'processing').length
+  const resolved = tickets.filter((ticket) => ticket.status === 'resolved').length
+  const highRisk = tickets.filter((ticket) => ticket.priority !== 'normal' && ticket.status !== 'resolved').length
   const updateStatus = (id, status) => {
     const statusText = status === 'resolved' ? '已解决' : status === 'processing' ? '处理中' : '待处理'
     setTickets((items) => items.map((ticket) => ticket.id === id ? { ...ticket, status, statusText, updated: '刚刚' } : ticket))
     setNotice('工单状态已更新（演示）')
   }
-  return <div className="service-content ticket-content">
-    <section className="metric-row compact">{[['全部工单', tickets.length, '本周新增 8'], ['待处理', tickets.filter((ticket) => ticket.status === 'pending').length, '需要及时跟进'], ['高优先级', tickets.filter((ticket) => ticket.priority !== 'normal' && ticket.status !== 'resolved').length, '含 1 个紧急事项'], ['已解决', tickets.filter((ticket) => ticket.status === 'resolved').length, '本周解决率 92%']].map(([label, value, note]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}</section>
-    <section className="surface ticket-surface"><div className="surface-head"><div><h2>服务工单</h2><p>集中跟进会话中的异常、投诉与协同事项</p></div><span className="demo-badge">演示数据</span></div><div className="ticket-toolbar"><div className="ticket-filters" role="group" aria-label="工单状态筛选">{[['all', '全部'], ['pending', '待处理'], ['processing', '处理中'], ['resolved', '已解决']].map(([value, label]) => <button type="button" key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="ticket-count">共 {filtered.length} 条</span></div><div className="ticket-list">{filtered.map((ticket) => <article className="ticket-row" key={ticket.id}><div className="ticket-main"><div className="ticket-id">{ticket.id}<span className={`ticket-priority ${ticket.priority}`}>{ticket.priorityText}</span></div><h3>{ticket.title}</h3><p>关联会话 {ticket.conversationId} · 负责人 {ticket.owner}</p></div><span className={`ticket-status ${ticket.status}`}>{ticket.statusText}</span><time>{ticket.updated}</time><div className="ticket-actions"><button type="button" onClick={() => navigate(`/workbench/${ticket.conversationId}`)}>查看会话</button>{ticket.status !== 'resolved' && <button type="button" onClick={() => updateStatus(ticket.id, ticket.status === 'pending' ? 'processing' : 'resolved')}>{ticket.status === 'pending' ? '开始处理' : '标记解决'}</button>}</div></article>)}{filtered.length === 0 && <div className="ticket-empty">当前筛选下暂无工单</div>}</div></section>{notice && <div className="prototype-toast" role="status">✓ {notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}</div>
+  const stats = [
+    { key: 'all', label: '全部工单', value: tickets.length, note: `待处理 ${pending} · 处理中 ${processing}`, tone: '' },
+    { key: 'pending', label: '待处理', value: pending, note: '需要及时跟进', tone: 'tk-metric-warning' },
+    { key: 'processing', label: '处理中', value: processing, note: `含高优先级 ${highRisk} 个`, tone: '' },
+    { key: 'resolved', label: '已解决', value: resolved, note: `当前解决率 ${tickets.length ? Math.round((resolved / tickets.length) * 100) : 0}%`, tone: 'tk-metric-safe' },
+  ]
+  return <div className="service-content db-dashboard tk-tickets">
+    <section className="db-metrics" aria-label="工单关键指标">
+      {stats.map((stat) => (
+        <button type="button" className={`db-metric ${stat.tone} ${filter === stat.key ? 'tk-metric-active' : ''}`} key={stat.key} onClick={() => setFilter(stat.key)} aria-pressed={filter === stat.key}>
+          <span className="db-metric-label">{stat.label}</span>
+          <strong className="db-metric-value">{stat.value}</strong>
+          <small>{stat.note}</small>
+        </button>
+      ))}
+    </section>
+    <section className="db-surface tk-surface">
+      <div className="db-surface-head">
+        <div><h2>服务工单</h2><p>集中跟进会话中的异常、投诉与协同事项，点击指标卡可快速筛选</p></div>
+        <span className="db-badge">演示数据</span>
+      </div>
+      <div className="tk-toolbar">
+        <div className="db-seg" role="group" aria-label="工单状态筛选">
+          {[['all', '全部'], ['pending', '待处理'], ['processing', '处理中'], ['resolved', '已解决']].map(([value, label]) => (
+            <button type="button" key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} aria-pressed={filter === value}>{label}</button>
+          ))}
+        </div>
+        <span className="tk-count">共 {filtered.length} 条</span>
+      </div>
+      <div className="tk-list">
+        {filtered.map((ticket) => (
+          <article className={`tk-row ${ticket.status}`} key={ticket.id}>
+            <div className="tk-main">
+              <div className="tk-tags">
+                <span className="tk-code">{ticket.id}</span>
+                <span className={`db-priority ${ticket.priority}`}>{ticket.priorityText}</span>
+                <span className={`tk-status ${ticket.status}`}><i />{ticket.statusText}</span>
+              </div>
+              <h3>{ticket.title}</h3>
+              <p>关联会话 <button type="button" className="tk-link" onClick={() => navigate(`/workbench/${ticket.conversationId}`)}>{ticket.conversationId}</button></p>
+            </div>
+            <span className="tk-owner" title={`负责人 ${ticket.owner}`}><i>{ticket.owner.slice(0, 1)}</i>{ticket.owner}</span>
+            <time className="tk-time">{ticket.updated}</time>
+            <div className="db-actions">
+              <button type="button" onClick={() => navigate(`/workbench/${ticket.conversationId}`)}>查看会话</button>
+              {ticket.status !== 'resolved' && <button type="button" className="db-claim" onClick={() => updateStatus(ticket.id, ticket.status === 'pending' ? 'processing' : 'resolved')}>{ticket.status === 'pending' ? '开始处理' : '标记解决'}</button>}
+            </div>
+          </article>
+        ))}
+        {filtered.length === 0 && <div className="db-queue-empty"><strong>当前筛选下暂无工单</strong><span>切换其他状态可查看更多协同事项</span></div>}
+      </div>
+    </section>
+    {notice && <div className="db-toast" role="status"><span>✓</span>{notice}<button type="button" onClick={() => setNotice('')} aria-label="关闭提示">×</button></div>}
+  </div>
 }
 
 function TeamDashboard({ session }) {
@@ -319,7 +374,7 @@ export function CustomerChat({ session, onLogout, client, initialChannel }) {
     try {
       const result = await rest.listConversations({ pageSize: 20 })
       const active = result.items.find((item) =>
-        ['queued', 'human'].includes(item.status) ||
+        ['queued', 'human', 'ai_handling'].includes(item.status) ||
         (item.status === 'ended' && item.evaluationPresentedAt),
       )
       if (!active) { setConversation(null); return }
@@ -380,7 +435,7 @@ export function CustomerChat({ session, onLogout, client, initialChannel }) {
     } catch (requestError) { setError(requestError.message) }
   }
 
-  const statusText = !conversation ? '人工客服在线' : conversation.status === 'queued' ? '正在排队等待客服' : conversation.status === 'human' ? `${conversation.agent?.name || '客服'} 正在为您服务` : '本次会话已结束'
+  const statusText = !conversation ? '人工客服在线' : conversation.status === 'queued' ? '正在排队等待客服' : conversation.status === 'human' ? `${conversation.agent?.name || '客服'} 正在为您服务` : conversation.status === 'ai_handling' ? 'AI 客服正在为您服务' : '本次会话已结束'
   const evaluationVisible = Boolean(conversation?.evaluationPresentedAt) && conversation?.status !== 'evaluated'
   return <main className="customer-page"><div className="customer-backdrop"><div className="customer-copy"><span>{session?.tenantName || '星河科技'} · 客户服务</span><h1>有问题，随时问我们。</h1><p>人工客服会实时处理您的咨询，聊天记录将安全保存在服务会话中。</p><div><b>真实会话</b> 持久保存 <b>实时</b> 消息同步</div></div></div><section className="customer-chat"><header style={{background:config.theme}}><span className="bot-orb">星</span><strong>星河客户服务<small><i/> {statusText} · {connected ? '实时已连接' : '正在连接'}</small></strong><button type="button" onClick={onLogout}>退出登录</button></header><div className="customer-messages"><p className="preview-time">{loading ? '正在加载历史会话…' : '当前会话'}</p>{!loading && !conversation && <><div className="agent-bubble">{config.welcome}。请选择常见问题或直接输入您的问题。</div><div className="customer-quick"><button onClick={() => send('退款多久到账？')}>退款多久到账？</button><button onClick={() => send('企业版支持私有化部署吗？')}>企业版支持私有化部署吗？</button><button onClick={() => send('如何修改登录密码？')}>如何修改登录密码？</button></div></>}{conversation?.messages?.map((message) => <div key={message.id} className={`${message.senderType}-bubble`}>{message.content}</div>)}{error && <div className="system-bubble">{error}</div>}{evaluationVisible && <div className="rating-card"><strong>请评价本次服务</strong><p>您的评价将直接结束本次会话。</p><div>{[['very_satisfied','非常满意'],['satisfied','满意'],['neutral','一般'],['dissatisfied','不满意']].map(([value,label]) => <button key={value} className={rating === value ? 'active' : ''} onClick={() => setRating(value)}>{label}</button>)}</div><textarea className="rating-text" maxLength={200} value={ratingText} onChange={(event) => setRatingText(event.target.value)} placeholder="还有什么想说的？（选填）"/><button className="rating-submit" disabled={!rating} onClick={submitRating}>提交评价并结束</button></div>}{conversation?.status === 'evaluated' && <div className="rating-thanks" role="status"><span>✓</span><strong>感谢您的反馈</strong><p>评价已提交，本次会话已经结束</p></div>}</div><footer><button aria-label="仅支持文本消息" disabled>＋</button><input aria-label="输入消息" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} disabled={sending || conversation?.status === 'evaluated'} placeholder={conversation?.status === 'evaluated' ? '评价已完成，会话只读' : conversation?.status === 'ended' ? '会话已结束 · 仍可补充消息' : '输入您的问题...'}/><button className="chat-send" style={{background:config.theme}} disabled={sending || !draft.trim()} onClick={() => send()}>发送</button></footer>{conversation && ['queued','human'].includes(conversation.status) && <button className="finish-chat" onClick={finish}>结束本次会话</button>}<p className="privacy-note">人工会话已持久化 · 断线重连后自动同步</p></section></main>
 }

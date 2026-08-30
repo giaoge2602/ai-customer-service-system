@@ -2,6 +2,44 @@
 
 本文件使用**中文**记录每个版本的任务产出、功能新增与修复内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 惯例。
 
+## [v0.6.0] - 2026-08-30
+
+### ✨ 新增：可审计 AI 接管闭环（AI Takeover）
+
+本次迭代将「AI 一键接管」从本地模拟升级为**平台管模型、机构配策略、坐席可接管/接回**的可审计闭环：平台统一管理任意 OpenAI 兼容模型的接入与密钥，机构配置接待模型与回答边界，客服可将处理中会话一键交给 AI 自动回复并随时接回。
+
+#### 新增功能
+
+**平台 AI 模型中心（/platform/models，`AiModelCenter`）**
+- `aiApi.js` API 层：`listAiModels` / `createAiModel` / `updateAiModel` / `disableAiModel`（停用即删除）/ `testAiModel`（连接测试）/ `getPlatformAiUsage`（聚合用量）
+- 接入表单支持接口类型快速填充（DeepSeek 云端 / LongCat 私有化 / 自定义 OpenAI 兼容接口），配置 Base URL、模型 ID、API Key（**加密存储仅显示掩码**）、显示名、超时与重试
+- 已接入模型列表（logo / 启用状态 / 掩码密钥 / 编辑 / 测试 / 停用）+ 四格用量卡（累计调用 / 成功率 / Token 用量 / 平均耗时）
+
+**机构 AI 客服管理（/organization/aiService，`TenantAiCenter`）**
+- `getTenantAiPolicy` / `updateTenantAiPolicy`：启用开关、接待模型（平台已启用模型）、系统提示词、机构知识规则、强制转人工关键词、温度 / 最大输出 Token / 每分钟上限 / 最大并发
+- 本机构用量卡 + 最近 100 次实时调用记录（模型 / 会话 / 状态 / Token / 耗时）
+
+**客服工作台 AI 接管闭环**
+- 处理中会话（当前接待客服可操作）一键「AI 接管」→ 状态变 `ai_handling`，停止人工超时计时，AI 自动回复期间输入框锁定并提示「人工接回后才能发送」，结束 / 退回按钮禁用
+- 「人工接回」可随时恢复人工处理，重新指定接待客服
+- 会话列表 / 状态徽章 / SLA 时钟 / 筛选（AI 接待）全面支持 `ai_handling`；订阅 `conversation.ai_taken_over / ai_reclaimed / ai_handoff` 实时事件自动刷新
+- `listAllConversations`：会话 REST 按总量**自动翻页**拉取机构内全部会话（工作台「全部状态」视图）
+
+**工作台与样式打磨**
+- `TicketWorkspace` 工单工作台重做：指标卡（全部 / 待处理 / 处理中 / 已解决）**一键联动筛选**、解决率实时计算、高优先级统计、关联会话跳转（`tickets.css`）
+- `dashboardApi.js`：运营大屏数据 API + 渠道配色装饰（`decorateChannelShare`）与告警趋势归一化（`normalizeAlertTrend`）
+- `fix-nginx.bat`：NGINX 80 端口残留实例清理与正确配置（含 /api 与 WebSocket 代理）启动脚本
+
+**工程化与文档**
+- 单元测试扩展至 **72 个用例**（新增 `aiApi.test.js`、`dashboardApi.test.js`，扩展 `conversationApi.test.js` 自动翻页），`npm test` 全绿
+- `docs/superpowers/`：AI 接管可审计闭环设计规格（`specs/2026-08-28-ai-takeover-design.md`）与实施计划（`plans/2026-08-28-ai-takeover.md`）
+- README 同步更新（AI 接管闭环、模型中心 / 策略配置、工单工作台、新模块与 72 用例）
+
+#### 技术说明
+- 安全默认值：温度 0.3、最大输出 800 Token、超时 30s、重试 2 次；上下文最多 30 条会话消息，排除内部系统与备注内容
+- 密钥由后端加密存储、绝不回传明文；模型删除在有历史/租户引用时降级为停用
+- AI 仅能回答问题，不可执行退款、改单、账号、工单等业务变更；失败 / 超时 / 强制转人工关键词自动退回人工队列
+
 ## [v0.5.0] - 2026-08-28
 
 ### ✨ 新增：人工会话闭环 + 客户多端对接待办 SDK

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   createOrResumeConversation,
+  listAllConversations,
   listConversations,
   sendConversationMessage,
 } from './conversationApi.js'
@@ -53,4 +54,18 @@ test('create and message calls keep the supplied clientMessageId', async () => {
     JSON.parse(request().options.body).clientMessageId,
     '22222222-2222-4222-8222-222222222222',
   )
+})
+
+test('listAllConversations loads every page required by the total count', async () => {
+  globalThis.window = { sessionStorage: { getItem: () => JSON.stringify({ accessToken: 'token' }) } }
+  const urls = []
+  globalThis.fetch = async (url) => {
+    urls.push(url)
+    const page = new URL(url, 'http://local').searchParams.get('page')
+    const items = page === '2' ? [{ id: 'C-3' }] : [{ id: 'C-1' }, { id: 'C-2' }]
+    return { ok: true, json: async () => ({ data: { items, total: 3 } }) }
+  }
+  const result = await listAllConversations({ pageSize: 2 })
+  assert.deepEqual(result.items.map((item) => item.id), ['C-1', 'C-2', 'C-3'])
+  assert.equal(urls.length, 2)
 })

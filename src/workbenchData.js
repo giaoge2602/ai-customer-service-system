@@ -99,7 +99,7 @@ export function slaRiskByLeft(left) {
 }
 
 const ENDED_STAGE = new Set(['ended', 'evaluated'])
-const STAGE_RANK = { human: 0, ai: 0, queued: 1, ended: 2, evaluated: 2 }
+const STAGE_RANK = { human: 0, ai: 0, ai_handling: 0, queued: 1, ended: 2, evaluated: 2 }
 
 /** 「全部状态」视角：客服可查看机构内全部会话（跨坐席），平台管理员可查看全平台 */
 export function visibleConversations(conversations, session) {

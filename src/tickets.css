@@ -1,0 +1,85 @@
+/* ============================================================
+   工单协同 · 复用客服看板 db-* 设计语言（Outfit 数字 · 卡片表面 · 分段筛选）
+   仅承载工单板块的增量样式，令牌全部继承自 .db-dashboard
+   ============================================================ */
+
+.tk-tickets .db-metric { text-align: left; font: inherit; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.tk-tickets .db-metric:hover { border-color: #b9c6ee; box-shadow: 0 1px 2px rgba(28, 36, 64, .05), 0 16px 36px -20px rgba(49, 91, 234, .38); transform: translateY(-1px); }
+.tk-tickets .db-metric.tk-metric-active { border-color: var(--db-primary); box-shadow: 0 0 0 1px var(--db-primary), var(--db-shadow); }
+.tk-tickets .db-metric.tk-metric-active::before { background: linear-gradient(180deg, var(--db-primary), var(--db-violet)); opacity: 1; }
+.tk-tickets .db-metric.tk-metric-warning .db-metric-value { color: #d97a22; }
+.tk-tickets .db-metric.tk-metric-warning::before { background: linear-gradient(180deg, var(--db-warning), var(--db-danger)); }
+.tk-tickets .db-metric.tk-metric-safe .db-metric-value { color: var(--db-safe); }
+.tk-tickets .db-metric.tk-metric-safe::before { background: linear-gradient(180deg, var(--db-safe), #57d6a5); }
+
+.tk-surface { display: flex; flex-direction: column; }
+.tk-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--db-line-soft); }
+.tk-count { font-size: 11.5px; color: var(--db-muted); font-variant-numeric: tabular-nums; }
+
+.tk-list { display: flex; flex-direction: column; }
+.tk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 86px auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--db-line-soft);
+  border-radius: 10px;
+  transition: background .15s ease;
+}
+.tk-row:last-of-type { border-bottom-color: transparent; }
+.tk-row:hover { background: #f7f9ff; }
+.tk-row.tk-resolved { opacity: .78; }
+
+.tk-main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.tk-tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tk-code {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  color: #4c68bb;
+  background: #eef2ff;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.tk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tk-status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.tk-status.pending { background: #fdf3e2; color: #d97a22; }
+.tk-status.processing { background: #e9edfd; color: var(--db-primary); }
+.tk-status.resolved { background: #e8f7f0; color: var(--db-safe); }
+
+.tk-main h3 { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--db-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-main p { margin: 0; font-size: 11.5px; color: var(--db-muted); }
+.tk-link { border: 0; background: none; padding: 0; font-size: 11.5px; color: var(--db-primary); cursor: pointer; font-family: Consolas, "SFMono-Regular", Menlo, monospace; }
+.tk-link:hover { text-decoration: underline; }
+
+.tk-owner { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--db-ink); white-space: nowrap; }
+.tk-owner i {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  font-size: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #5f8cf3, var(--db-primary));
+}
+.tk-time { font-size: 11.5px; color: var(--db-muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.tk-row .db-actions button { height: 30px; padding: 0 12px; font-size: 12px; border-radius: 8px; }
+
+@media (max-width: 900px) {
+  .tk-row { grid-template-columns: 1fr auto; }
+  .tk-row .tk-owner { grid-column: 1; }
+  .tk-row .tk-time { grid-column: 1; text-align: left; }
+  .tk-row .db-actions { grid-column: 2; grid-row: 1 / span 3; flex-direction: column; }
+}

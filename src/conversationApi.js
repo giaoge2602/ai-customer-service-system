@@ -31,6 +31,19 @@ export async function listConversations(params = {}) {
   return { ...result, items: (result.items || []).map(normalizeConversation) }
 }
 
+/** 按总量自动翻页，拉取机构内全部会话（工作台「全部状态」视图使用） */
+export async function listAllConversations(params = {}) {
+  const pageSize = params.pageSize || 100
+  const first = await listConversations({ ...params, page: 1, pageSize })
+  const items = [...first.items]
+  const totalPages = Math.ceil((first.total || items.length) / pageSize)
+  for (let page = 2; page <= totalPages; page += 1) {
+    const next = await listConversations({ ...params, page, pageSize })
+    items.push(...next.items)
+  }
+  return { ...first, items }
+}
+
 export async function createOrResumeConversation(input) {
   const result = await authRequest('/conversations', {
     method: 'POST',

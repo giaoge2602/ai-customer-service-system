@@ -11,6 +11,7 @@ import './prototype.css'
 import './dashboard.css'
 import './approval.css'
 import './logs.css'
+import './tickets.css'
 import './customer-center.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

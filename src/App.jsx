@@ -9,7 +9,8 @@ import { canAccessPath, resolveHome, resolveLoginPath, resolveLogoutPath } from 
 import { getWorkArea } from './prototype'
 import { readAccessToken } from './api'
 import { createConversationRealtime } from './conversationRealtime'
-import { claimConversation, endConversation as endConversationRequest, getConversation, listConversations, markConversationRead, releaseConversation, requestConversationEvaluation, sendConversationMessage } from './conversationApi'
+import { claimConversation, endConversation as endConversationRequest, getConversation, listAllConversations, listConversations, markConversationRead, releaseConversation, requestConversationEvaluation, sendConversationMessage } from './conversationApi'
+import { reclaimConversationFromAi, takeoverConversationByAi } from './aiApi'
 import { canReplyTo, formatSlaSeconds, slaRiskByLeft, sortConversationsByStage, visibleConversations } from './workbenchData'
 import EmptyState from './EmptyState'
 
@@ -170,7 +171,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
       initials: (item.customer?.name || '客').slice(0, 1),
       channel: item.channel === 'web' ? '网页' : item.channel,
       channelKey: item.channel,
-      statusText: item.status === 'queued' ? '待接管' : item.status === 'human' ? '处理中' : item.status === 'evaluated' ? '已评价' : '已结束',
+      statusText: item.status === 'queued' ? '待接管' : item.status === 'human' ? '处理中' : item.status === 'ai_handling' ? 'AI 接待中' : item.status === 'evaluated' ? '已评价' : '已结束',
       priorityText: item.priority === 'urgent' ? '紧急' : item.priority === 'high' ? '高优先级' : '普通',
       unread: item.unreadCount || 0,
       time: item.updatedAt ? new Date(item.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '刚刚',
@@ -180,7 +181,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
         ? (timerSeconds != null ? '接管时限' : '等待接管')
         : item.status === 'human'
           ? (replySeconds != null ? (replySeconds > 0 ? '剩余答复时间' : '已超时') : '等待回复')
-          : item.status === 'evaluated' ? '已评价' : '已结束',
+          : item.status === 'ai_handling' ? 'AI 自动回复' : item.status === 'evaluated' ? '已评价' : '已结束',
       slaRisk: timerSeconds != null ? slaRiskByLeft(timerSeconds) : 'safe',
       preview: lastMessage?.text || '暂无消息',
       tone: 'blue',
@@ -203,7 +204,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
 
   const loadConversations = async (preferredId = selectedId) => {
     try {
-      const result = await listConversations({ pageSize: 100 })
+      const result = await listAllConversations({ pageSize: 100 })
       const adapted = result.items.map(adaptConversation)
       setConversations(adapted)
       const nextId = adapted.some((item) => item.id === preferredId) ? preferredId : adapted[0]?.id
@@ -225,7 +226,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     if (!token) return undefined
     const realtime = createConversationRealtime({ token, onReconnect: () => loadConversations() })
     const refresh = () => loadConversations()
-    const unsubscribers = ['conversation.created', 'conversation.claimed', 'conversation.released', 'conversation.assigned', 'conversation.ended', 'message.created', 'evaluation.scheduled'].map((name) => realtime.subscribe(name, refresh))
+    const unsubscribers = ['conversation.created', 'conversation.claimed', 'conversation.released', 'conversation.assigned', 'conversation.ended', 'conversation.ai_taken_over', 'conversation.ai_reclaimed', 'conversation.ai_handoff', 'message.created', 'evaluation.scheduled'].map((name) => realtime.subscribe(name, refresh))
     if (selectedId) realtime.join(selectedId)
     return () => { unsubscribers.forEach((unsubscribe) => unsubscribe()); realtime.close() }
   }, [selectedId])
@@ -314,6 +315,14 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     try { await claimConversation(selected.id); await loadConversations(selected.id); notify('已成功接管会话，发送权限已开启') } catch (requestError) { notify(requestError.message) }
   }
 
+  const handToAi = async () => {
+    try { await takeoverConversationByAi(selected.id); await loadConversations(selected.id); notify('AI 已接管，会话停止人工超时计时') } catch (requestError) { notify(requestError.message) }
+  }
+
+  const reclaimFromAi = async () => {
+    try { await reclaimConversationFromAi(selected.id); await loadConversations(selected.id); notify('已从 AI 接回，会话恢复人工处理') } catch (requestError) { notify(requestError.message) }
+  }
+
   // 处理中由原接待客服回复；已结束会话仅原接待客服可补充（状态与计时不变），已评价只读
   const sendMessage = async () => {
     if (!draft.trim() || !canReplyTo(selected, me)) return
@@ -358,7 +367,9 @@ function Workbench({ routeId, navigate, session, onLogout }) {
         ? '已评价会话为只读，无法继续发送'
         : selected.status === 'ended'
           ? '仅原接待客服可继续回复'
-          : `${selected.assignee || '其他客服'} 正在接待本会话`
+          : selected.status === 'ai_handling'
+            ? 'AI 正在自动回复，人工接回后才能发送'
+            : `${selected.assignee || '其他客服'} 正在接待本会话`
     : selected.status === 'ended'
       ? '会话已结束 · 仍可补充消息（不会重启计时）'
       : '输入回复内容...'
@@ -370,7 +381,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
           <section className="conversation-column" aria-label="会话列表">
             <div className="column-header"><div><h1>会话</h1><p>{filtered.length} 个会话 · <em>{filtered.filter((c) => c.status === 'queued').length}</em> 个待接管</p></div><button type="button" className="primary-button compact claim-next" onClick={claimNext} disabled={!filtered.some((c) => c.status === 'queued')} title="按 SLA 优先级自动接入下一条待处理会话"><Icon name="arrow" size={14} />一键接下一</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div>
             <div className="search-box"><Icon name="search" size={17} /><input aria-label="搜索会话" value={query} onChange={(e) => updateParam('q', e.target.value)} placeholder="搜索客户、会话或消息" /></div>
-            <div className="filter-row"><label className="sr-only" htmlFor="status-filter">会话状态</label><select id="status-filter" value={statusFilter} onChange={(e) => updateParam('status', e.target.value)}><option value="all">全部状态</option><option value="queued">待接管</option><option value="human">处理中</option><option value="ai">AI接待</option><option value="ended">已结束</option><option value="evaluated">已评价</option></select><label className="sr-only" htmlFor="channel-filter">渠道</label><select id="channel-filter" value={channelFilter} onChange={(e) => updateParam('channel', e.target.value)}><option value="all">全部渠道</option><option value="wechat">微信</option><option value="web">网页</option><option value="wecom">企业微信</option><option value="h5">H5</option><option value="api">API</option></select><label className="sr-only" htmlFor="risk-filter">SLA风险</label><select id="risk-filter" value={riskFilter} onChange={(e) => updateParam('risk', e.target.value)}><option value="all">SLA 风险</option><option value="warning">即将超时</option><option value="danger">已超时</option><option value="safe">正常</option></select></div>
+            <div className="filter-row"><label className="sr-only" htmlFor="status-filter">会话状态</label><select id="status-filter" value={statusFilter} onChange={(e) => updateParam('status', e.target.value)}><option value="all">全部状态</option><option value="queued">待接管</option><option value="human">处理中</option><option value="ai_handling">AI接待</option><option value="ended">已结束</option><option value="evaluated">已评价</option></select><label className="sr-only" htmlFor="channel-filter">渠道</label><select id="channel-filter" value={channelFilter} onChange={(e) => updateParam('channel', e.target.value)}><option value="all">全部渠道</option><option value="wechat">微信</option><option value="web">网页</option><option value="wecom">企业微信</option><option value="h5">H5</option><option value="api">API</option></select><label className="sr-only" htmlFor="risk-filter">SLA风险</label><select id="risk-filter" value={riskFilter} onChange={(e) => updateParam('risk', e.target.value)}><option value="all">SLA 风险</option><option value="warning">即将超时</option><option value="danger">已超时</option><option value="safe">正常</option></select></div>
             <div className="queue-summary"><span><i className="dot danger" />高风险 2</span><span><i className="dot warning" />即将超时 1</span><button onClick={() => setParams({}, { replace: true })}>清除筛选</button></div>
             <div className="conversation-list" role="list">
               {filtered.map((item) => <ConversationItem key={item.id} item={item} selected={selected.id === item.id} onClick={() => selectConversation(item.id)} slaView={slaViewOf(item, slaLeft)} />)}
@@ -379,8 +390,9 @@ function Workbench({ routeId, navigate, session, onLogout }) {
           </section>
 
           <section className="chat-column" aria-label="消息工作区">
-            <div className="chat-header"><button ref={mobileListButtonRef} type="button" className="mobile-conversation-button icon-button subtle" aria-label="打开会话列表" aria-expanded={mobileListOpen} onClick={() => setMobileListOpen(true)}><Icon name="chat" size={17} /></button><div className={`customer-avatar ${selected.tone}`}>{selected.initials}</div><div className="chat-heading"><div><h2>{selected.name}</h2><span className="channel-text"><span className="channel-pill">{selected.channel}</span> #{selected.id}</span></div><StatusBadge item={selected} /></div><div className="chat-actions"><div className={`sla-clock ${selectedSla.risk}`}><span>状态</span><strong>{selectedSla.strong}</strong><small>{selectedSla.small}</small></div><button type="button" className="ai-takeover-button" onClick={inviteEvaluation} disabled={selected.status !== 'human'} title="问题处理完成后邀请客户评价"><Icon name="check" size={14} />问题已解决</button><button className="secondary-button" onClick={releaseSelected} disabled={selected.status !== 'human'}>退回队列</button><button className="danger-button" onClick={endConversation} disabled={['ended','evaluated'].includes(selected.status)}>结束会话</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div></div>
+            <div className="chat-header"><button ref={mobileListButtonRef} type="button" className="mobile-conversation-button icon-button subtle" aria-label="打开会话列表" aria-expanded={mobileListOpen} onClick={() => setMobileListOpen(true)}><Icon name="chat" size={17} /></button><div className={`customer-avatar ${selected.tone}`}>{selected.initials}</div><div className="chat-heading"><div><h2>{selected.name}</h2><span className="channel-text"><span className="channel-pill">{selected.channel}</span> #{selected.id}</span></div><StatusBadge item={selected} /></div><div className="chat-actions"><div className={`sla-clock ${selectedSla.risk}`}><span>状态</span><strong>{selectedSla.strong}</strong><small>{selectedSla.small}</small></div>{selected.status === 'human' && canReplyTo(selected, me) && <button type="button" className="ai-takeover-button" onClick={handToAi} title="将当前会话转交机构配置的AI模型"><Icon name="spark" size={14} />AI 接管</button>}{selected.status === 'ai_handling' && <button type="button" className="ai-takeover-button" onClick={reclaimFromAi}><Icon name="headset" size={14} />人工接回</button>}<button type="button" className="ai-takeover-button" onClick={inviteEvaluation} disabled={selected.status !== 'human' || !canReplyTo(selected, me)} title="问题处理完成后邀请客户评价"><Icon name="check" size={14} />问题已解决</button><button className="secondary-button" onClick={releaseSelected} disabled={selected.status !== 'human' || !canReplyTo(selected, me)}>退回队列</button><button className="danger-button" onClick={endConversation} disabled={['ai_handling','ended','evaluated'].includes(selected.status)}>结束会话</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div></div>
             {selected.status === 'queued' && <HandoffBanner selected={selected} onTakeOver={takeOver} />}
+            {selected.status === 'ai_handling' && <div className="ended-banner"><Icon name="spark" size={16} /> AI 正在自动回答客户问题 · 客服可实时查看并随时人工接回</div>}
             {selected.status === 'ended' && <div className="ended-banner"><Icon name="check" size={16} /> 会话已结束 · {canReplyTo(selected, me) ? '你（原接待客服）可继续补充消息，状态与计时保持不变' : `仅原接待客服 ${selected.assignee || ''} 可继续回复`}</div>}
             {selected.status === 'evaluated' && <div className="ended-banner"><Icon name="check" size={16} /> 客户已提交{selected.customer.satisfaction === '—' ? '' : ` ${selected.customer.satisfaction} 星`}评价 · 会话已只读</div>}
             <div className="message-scroll"><div className="date-divider"><span>今天 · 2026年8月19日</span></div>{selected.messages.map((message) => <MessageItem key={message.id} message={message} endedAt={selected.endedAt} />)}{aiSuggestion && <AiSuggestionCard suggestion={aiSuggestion} onAccept={acceptSuggestion} onDismiss={() => setAiSuggestion('')} />}</div>
@@ -393,7 +405,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
       {!rightOpen && <button className="mobile-context-toggle" onClick={() => setRightOpen(true)}>查看客户信息</button>}
       {showTicket && <Dialog title="创建关联工单" onClose={() => setShowTicket(false)} wide><div className="ticket-form"><label className="field-label" htmlFor="ticket-title">工单标题</label><input id="ticket-title" placeholder="请输入需要协同处理的问题" defaultValue={`${selected.name} · ${selected.preview}`} /><div className="form-grid"><div><label className="field-label" htmlFor="ticket-type">问题分类</label><select className="dialog-select" id="ticket-type"><option>退款与售后</option><option>技术故障</option><option>客户投诉</option></select></div><div><label className="field-label" htmlFor="ticket-level">优先级</label><select className="dialog-select" id="ticket-level"><option>高</option><option>普通</option><option>紧急</option></select></div></div><label className="field-label" htmlFor="ticket-description">问题描述</label><textarea id="ticket-description" placeholder="补充处理背景和期望结果..." defaultValue={selected.handoff?.summary || ''} /></div><div className="dialog-actions"><button className="secondary-button" onClick={() => setShowTicket(false)}>取消</button><button className="primary-button" onClick={() => { setShowTicket(false); notify('工单 TK-20260819-026 已创建') }}>创建工单</button></div></Dialog>}
       <div className="sr-only" aria-live="polite">{toast}</div>{toast && <div className="toast"><span className="toast-check"><Icon name="check" size={14} /></span>{toast}</div>}
-      {mobileListOpen && <><button type="button" className="conversation-scrim" aria-label="关闭会话列表" onClick={() => { setMobileListOpen(false); mobileListButtonRef.current?.focus() }} /><div className="mobile-conversation-drawer">{<section className="conversation-column" aria-label="会话列表"><div className="column-header"><div><h1>会话</h1><p>{filtered.length} 个会话 · <em>{filtered.filter((c) => c.status === 'queued').length}</em> 个待接管</p></div></div><div className="search-box"><Icon name="search" size={17} /><input aria-label="搜索会话" value={query} onChange={(e) => updateParam('q', e.target.value)} placeholder="搜索客户、会话或消息" /></div><div className="filter-row"><label className="sr-only" htmlFor="mobile-status-filter">会话状态</label><select id="mobile-status-filter" value={statusFilter} onChange={(e) => updateParam('status', e.target.value)}><option value="all">全部状态</option><option value="queued">待接管</option><option value="human">处理中</option><option value="ai">AI接待</option><option value="ended">已结束</option><option value="evaluated">已评价</option></select><label className="sr-only" htmlFor="mobile-channel-filter">渠道</label><select id="mobile-channel-filter" value={channelFilter} onChange={(e) => updateParam('channel', e.target.value)}><option value="all">全部渠道</option><option value="wechat">微信</option><option value="web">网页</option><option value="wecom">企业微信</option><option value="h5">H5</option><option value="api">API</option></select><label className="sr-only" htmlFor="mobile-risk-filter">SLA风险</label><select id="mobile-risk-filter" value={riskFilter} onChange={(e) => updateParam('risk', e.target.value)}><option value="all">SLA 风险</option><option value="warning">即将超时</option><option value="danger">已超时</option><option value="safe">正常</option></select></div><div className="conversation-list" role="list">{filtered.map((item) => <ConversationItem key={item.id} item={item} selected={selected.id === item.id} onClick={() => selectConversation(item.id)} slaView={slaViewOf(item, slaLeft)} />)}</div></section>}</div></>}
+      {mobileListOpen && <><button type="button" className="conversation-scrim" aria-label="关闭会话列表" onClick={() => { setMobileListOpen(false); mobileListButtonRef.current?.focus() }} /><div className="mobile-conversation-drawer">{<section className="conversation-column" aria-label="会话列表"><div className="column-header"><div><h1>会话</h1><p>{filtered.length} 个会话 · <em>{filtered.filter((c) => c.status === 'queued').length}</em> 个待接管</p></div></div><div className="search-box"><Icon name="search" size={17} /><input aria-label="搜索会话" value={query} onChange={(e) => updateParam('q', e.target.value)} placeholder="搜索客户、会话或消息" /></div><div className="filter-row"><label className="sr-only" htmlFor="mobile-status-filter">会话状态</label><select id="mobile-status-filter" value={statusFilter} onChange={(e) => updateParam('status', e.target.value)}><option value="all">全部状态</option><option value="queued">待接管</option><option value="human">处理中</option><option value="ai_handling">AI接待</option><option value="ended">已结束</option><option value="evaluated">已评价</option></select><label className="sr-only" htmlFor="mobile-channel-filter">渠道</label><select id="mobile-channel-filter" value={channelFilter} onChange={(e) => updateParam('channel', e.target.value)}><option value="all">全部渠道</option><option value="wechat">微信</option><option value="web">网页</option><option value="wecom">企业微信</option><option value="h5">H5</option><option value="api">API</option></select><label className="sr-only" htmlFor="mobile-risk-filter">SLA风险</label><select id="mobile-risk-filter" value={riskFilter} onChange={(e) => updateParam('risk', e.target.value)}><option value="all">SLA 风险</option><option value="warning">即将超时</option><option value="danger">已超时</option><option value="safe">正常</option></select></div><div className="conversation-list" role="list">{filtered.map((item) => <ConversationItem key={item.id} item={item} selected={selected.id === item.id} onClick={() => selectConversation(item.id)} slaView={slaViewOf(item, slaLeft)} />)}</div></section>}</div></>}
     </>
   )
 }
