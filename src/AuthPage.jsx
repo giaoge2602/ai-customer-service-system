@@ -135,7 +135,7 @@ function LoginForm({ portal, mode, copy, onAuthenticated }) {
 }
 
 const registrationTargets = {
-  agent: { role: 'agent', portal: 'service', title: '客服账号注册', description: '使用机构派发的邀请码提交入职申请，两级审核通过后激活。', requiresInvite: true, inviteType: 'agent' },
+  agent: { role: 'agent', portal: 'service', title: '客服账号注册', description: '使用机构派发的邀请码提交入职申请，机构审核通过后即激活。', requiresInvite: true, inviteType: 'agent' },
   tenant: { role: 'tenant_admin', portal: 'admin', title: '机构入驻申请', description: '使用平台派发的邀请码提交入驻申请，审核通过后机构与账号一同激活。', requiresInvite: true, inviteType: 'tenant' },
   platform: { role: 'platform_admin', portal: 'admin', title: '平台管理员初始化', description: '仅用于受控的平台初始化或邀请流程。', requiresInvite: false },
 }
@@ -209,7 +209,7 @@ function RegisterForm({ portal, mode, copy, targetKey }) {
       } else {
         setSuccess(role === 'tenant_admin'
           ? `机构入驻申请「${values.tenantName}」已提交，请等待平台管理员审核。审核通过后，机构与管理员账号将一同激活。`
-          : '客服注册申请已提交，需机构管理员与平台管理员两级审核通过后，账号方可激活登录。')
+          : '客服注册申请已提交，请等待机构管理员审核。审核通过后，账号即可激活登录。')
       }
     } catch (err) {
       if (!canCommitRequest(mountedRef.current, registerRequestGenerationRef.current, requestGeneration)) return

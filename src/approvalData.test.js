@@ -47,18 +47,20 @@ test('tenant approval activates the org admin account in one step', () => {
   assert.equal(user.tenantName, '远望科技')
 })
 
-test('agent approval needs both the org and the platform side', () => {
+test('agent approval activates with the org side alone', () => {
   const storage = freshStorage()
   const invite = createInvite({ type: 'agent', tenantId: 'TENANT-018', tenantName: '星河科技', issuedBy: '赵宁' }, storage)
   const created = createApproval({ kind: 'agent', name: '孙小雅', email: 'sunxiaoya@xinghe.demo', password: 'Demo@2026', inviteCode: invite.code }, storage)
   const first = updateApproval(created.approval.id, { stage: 'org', decision: 'approved', reviewedBy: '赵宁' }, storage)
-  assert.equal(first.status, 'pending')
-  assert.equal(getUserByEmail('sunxiaoya@xinghe.demo', storage), null)
-  const second = updateApproval(created.approval.id, { stage: 'platform', decision: 'approved', reviewedBy: '王敏' }, storage)
-  assert.equal(second.status, 'active')
+  assert.equal(first.status, 'active')
   const user = getUserByEmail('sunxiaoya@xinghe.demo', storage)
   assert.equal(user.role, 'agent')
   assert.equal(user.tenantId, 'TENANT-018')
+  // 平台阶段已不再参与客服审核
+  const other = createInvite({ type: 'agent', tenantId: 'TENANT-018', tenantName: '星河科技', issuedBy: '赵宁' }, storage)
+  const created2 = createApproval({ kind: 'agent', name: '陈小飞', email: 'chenfei@xinghe.demo', password: 'Demo@2026', inviteCode: other.code }, storage)
+  const rejected = updateApproval(created2.approval.id, { stage: 'platform', decision: 'approved', reviewedBy: '王敏' }, storage)
+  assert.equal(rejected.error, '客服注册申请仅由机构管理员审核')
 })
 
 test('a rejection marks the request rejected and frees the invite', () => {
@@ -78,15 +80,20 @@ test('a tenant request can only be reviewed at the platform stage', () => {
   assert.equal(result.error, '机构入驻申请仅由平台管理员审核')
 })
 
-test('seed data shows an org request and an agent request awaiting platform review', () => {
+test('legacy pending agent approvals waiting for platform review are migrated to active', () => {
   const storage = freshStorage()
   const approvals = listApprovals({}, storage)
   const tenant = approvals.find((a) => a.id === 'REQ-1001')
   assert.equal(tenant.kind, 'tenant')
   assert.equal(tenant.status, 'pending')
+  // 旧数据 REQ-1002（机构已通过、等待平台终审）在单级审核下自动激活
   const agent = approvals.find((a) => a.id === 'REQ-1002')
-  assert.equal(agent.orgApproval, 'approved')
-  assert.equal(agent.platformApproval, 'pending')
+  assert.equal(agent.status, 'active')
+  assert.ok(agent.userId)
+  assert.ok(getUserByEmail('sunlei@xinghe.demo', storage))
+  // REQ-1003 仍由机构正常审核
+  const pending = approvals.find((a) => a.id === 'REQ-1003')
+  assert.equal(pending.status, 'pending')
   // 撤销有效邀请码后无法再使用
   const validInvite = createInvite({ type: 'tenant', issuedBy: '王敏' }, storage)
   revokeInvite(validInvite.code, storage)

@@ -44,6 +44,14 @@ test('demo login never bypasses an explicit authentication rejection', async () 
   await assert.rejects(() => loginWithDemoFallback('lina@xinghe.demo', 'Demo@2026', rejectedApi), /账号已停用/)
 })
 
+test('a locally registered agent can log in when the backend does not know the account', async () => {
+  // 后端在线但用户表没有本地审核激活的账号：返回 401“账号或密码错误”时应降级到本地账号库
+  await withFetch(async () => new Response(JSON.stringify({ code: 1001, message: '账号或密码错误' }), { status: 401, headers: { 'Content-Type': 'application/json' } }), async () => {
+    const session = await loginWithDemoFallback('lina@xinghe.demo', 'Demo@2026')
+    assert.equal(session.role, 'agent')
+  })
+})
+
 test('a real HTTP 500 login response never triggers the demo fallback', async () => {
   await withFetch(async () => new Response(JSON.stringify({ message: '认证处理异常' }), { status: 500, headers: { 'Content-Type': 'application/json' } }), async () => {
     await assert.rejects(() => loginWithDemoFallback('lina@xinghe.demo', 'Demo@2026'), /认证处理异常/)
@@ -231,7 +239,7 @@ test('password recovery rejects malformed email and accepts a work email', () =>
   assert.equal(validateRecoveryEmail('agent@xinghe.demo'), '')
 })
 
-test('a registered agent cannot log in until both approval sides pass', () => {
+test('a registered agent cannot log in until the org approves', () => {
   const invite = createInvite({ type: 'agent', tenantId: 'TENANT-018', tenantName: '星河科技', issuedBy: '赵宁' })
   const created = createApproval({ kind: 'agent', name: '测试客服', email: 'new.agent@xinghe.demo', password: 'Demo@2026', inviteCode: invite.code })
   assert.ok(created.ok)
@@ -241,13 +249,8 @@ test('a registered agent cannot log in until both approval sides pass', () => {
   assert.equal(before.ok, false)
   assert.ok(before.error.includes('尚未激活'))
 
-  // 机构端通过后，仍需平台端：仍不可登录
+  // 机构端通过：账号即激活，可登录
   updateApproval(created.approval.id, { stage: 'org', decision: 'approved', reviewedBy: '赵宁' })
-  const middle = authenticateDemo('new.agent@xinghe.demo', 'Demo@2026')
-  assert.equal(middle.ok, false)
-
-  // 平台端通过：账号激活，可登录
-  updateApproval(created.approval.id, { stage: 'platform', decision: 'approved', reviewedBy: '王敏' })
   const after = authenticateDemo('new.agent@xinghe.demo', 'Demo@2026')
   assert.equal(after.ok, true)
   assert.equal(after.session.role, 'agent')

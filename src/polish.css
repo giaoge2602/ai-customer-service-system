@@ -977,3 +977,34 @@ button:active:not(:disabled) {
 }
 .bulk-bar .table-action:hover { background: rgba(255,255,255,0.18); }
 .bulk-bar .table-action.muted { background: transparent; }
+
+/* ============================================================
+   会话工作区头部打磨：短会话号 · 状态时钟 · 操作按钮组统一
+   ============================================================ */
+.chat-heading > div { min-width: 0; }
+.channel-text { white-space: nowrap; max-width: 100%; }
+.conversation-id { overflow: hidden; text-overflow: ellipsis; }
+.status-badge.ai_handling { color: #6d4bd7; background: #f2edff; }
+.status-mini.ai_handling { color: #684ac0; }
+.sla-clock strong, .sla-clock small { white-space: nowrap; }
+.sla-clock.ai strong, .sla-clock.ai small { color: #7254ce; }
+
+.chat-actions { flex-wrap: nowrap; }
+.chat-actions .ai-takeover-button,
+.chat-actions .secondary-button,
+.chat-actions .danger-button { height: 30px; padding: 0 11px; border-radius: 8px; font-size: 11px; }
+.ai-takeover-button.success { border-color: rgba(22, 132, 91, .32); background: linear-gradient(135deg, #eefaf3, #e0f5ea); color: #16845b; }
+.ai-takeover-button.success:hover:not(:disabled) {
+  border-color: transparent;
+  background: linear-gradient(135deg, #1c9a68, #2fa36b);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(23, 132, 91, .32);
+  transform: translateY(-1px);
+}
+.ai-takeover-button.success:disabled { opacity: .45; box-shadow: none; }
+@media (max-width: 780px) {
+  .chat-actions { gap: 5px; }
+  .chat-actions .ai-takeover-button,
+  .chat-actions .secondary-button,
+  .chat-actions .danger-button { padding: 0 8px; font-size: 10px; }
+}

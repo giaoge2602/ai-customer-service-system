@@ -20,7 +20,7 @@
 - **门户隔离**：客服/客户走 `service` 门户，平台/机构管理员走 `admin` 门户，两套品牌文案与注册入口相互独立，登录页可互相跳转
 - **RBAC 权限路由**：`ProtectedRoute` 守卫 + `canAccessPath` 路径级鉴权；`/platform` 仅超管、`/organization` 限管理员、`/customer/*` 限客户、`/workbench/knowledge` 与 `/workbench/settings` 限管理员
 - **后端优先 + 演示降级**：优先调用后端登录接口（`/api/v1/auth/login`），后端不可用时自动降级为本地演示账号（`loginWithDemoFallback`）
-- **邀请码 + 两级审核注册**：机构入驻需持有平台派发的机构邀请码，客服入职需持有机构派发的客服邀请码；注册申请提交后进入审核中心，客服申请需机构管理员与平台管理员**两端均审核通过**才激活，机构申请由平台管理员审核通过后创建机构并激活管理员账号，任一端驳回则申请作废并释放邀请码
+- **邀请码 + 单级审核注册**：机构入驻需持有平台派发的机构邀请码，客服入职需持有机构派发的客服邀请码；注册申请提交后进入审核中心，客服申请由**机构管理员单级审核**通过即激活，机构申请由平台管理员审核通过后创建机构并激活管理员账号，驳回则申请作废并释放邀请码
 - **登录态管理**：会话与 Token 保存在 `sessionStorage`，刷新不丢失，按门户路由退出
 
 ### 1. 客服工作台（/workbench）
@@ -29,7 +29,7 @@
 - **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒、**分流接待队列**（队列类型 + 优先级 + 客服分配联动）、**看板洞察指标**（机构/客服/渠道占比、AI 处理率、对比分析，`dashboardInsights`）
 - **服务工单（/workbench/tickets）**：工单指标卡一键联动筛选（全部 / 待处理 / 处理中 / 已解决）、解决率实时计算、关联会话跳转、状态流转
 - **客户目录（/workbench/customers）**：客户档案列表（`CustomerCenter` 组件）
-- **服务日志（/workbench/service-logs）**：客服操作与系统事件日志视图（`LogsView`）
+- **服务日志（/workbench/service-logs）**：客服操作与系统事件日志视图（`LogsView`，**后端优先加载、失败降级演示数据**，按级别/时间筛选，可导出 CSV）
 - **知识库（/workbench/knowledge）**：FAQ 与知识文档管理、命中率统计、未命中问题沉淀
 - **AI 与界面配置（/workbench/settings）**：非工作时间 AI 接管时段、欢迎语、品牌主题色、窗口形态配置，实时预览并可发布到客户入口
 
@@ -42,16 +42,17 @@
 
 ### 3. 平台管理中心（/platform）
 - **平台运营总览**：机构总数、活跃机构、今日会话、全局 AI 解决率；近 7 日服务量趋势；租户健康排行；待办与审计动态。内置**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览按钮，可一键进入全屏大屏查看今日实时、会话构成、Token 消耗、机构活跃度、订单达成率、客户满意度等板块）
-- **注册审核中心（/platform/approvals）**：机构入驻申请审核（通过后创建机构并激活管理员账号）、客服两级审核（机构端 + 平台端，两端通过才激活）、机构邀请码派发与撤销
+- **注册审核中心（/platform/approvals）**：机构入驻申请审核（通过后创建机构并激活管理员账号）、机构邀请码派发与撤销（客服注册由机构单级审核，平台端不再参与）
 - **机构与租户**：租户生命周期管理（审核 / 启用 / 停用）、套餐与配额可视化（已封装 `api.js` 租户接口，可对接后端 F-002）
 - **会话监控（/platform/conversations、/organization/conversations）**：跨机构/本机构异常会话记录，追溯完整聊天内容
 - **告警中心（平台 /alerts）**：平台告警管理与异常事件处理
 - **AI 模型中心（/platform/models）**：任意 OpenAI 兼容接口统一接入（DeepSeek 云端 / LongCat 私有化 / 自定义聚合平台），支持新增 / 编辑 / 停用 / **连接测试**，API Key 加密存储仅显示掩码；实时展示累计调用、成功率、Token 用量与平均耗时（`AiModelCenter`）
 - **全局配置 / 安全与审计 / 运维监控**：平台级参数、审计日志、核心服务健康度
+- **系统日志（/platform/logs）**：全平台审计事件与 AI 调用异常聚合检索，内置**系统诊断面板**（数据库 / 内存 / AI 通道 / 队列水位，15 秒自动轮询，崩溃与联调排查用）
 
 ### 4. 机构管理中心（/organization）
 - **机构运营总览**：今日会话、AI 解决率、SLA 达成率、满意度；实时服务概览与客服负载。内置与超管一致的**动态实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏按钮，可进入全屏大屏查看机构维度的今日实时、会话构成、Token 消耗、客服负载、客户满意度、风险告警等板块）
-- **客服审核中心（/organization/approvals）**：本机构客服入职申请审核（机构端通过后仍需平台端终审）、客服邀请码派发与撤销
+- **客服审核中心（/organization/approvals）**：本机构客服入职申请审核（机构端通过即激活）、客服邀请码派发与撤销
 - **客服与组织**：客服账号管理（已封装 `api.js` 坐席接口，可对接后端 F-006）
 - **客户中心 / 知识库 / AI 路由策略 / 渠道接入 / 服务运营**：档案、知识文档、意图路由、渠道状态、服务健康指标
 - **AI 客服管理（/organization/aiService）**：选择平台已启用模型、配置系统提示词与机构知识规则、强制转人工关键词、温度 / 最大输出 Token / 每分钟上限 / 最大并发，实时查看最近 100 次模型调用记录（`TenantAiCenter`）
@@ -61,6 +62,7 @@
 - `docs/superpowers/`：设计规格与实施计划（后端 MVP、双前端认证改造、双客服调度计划、**人工会话闭环设计/规划**、**AI 接管可审计闭环设计/实施**）
 - `docs/frontend-improvements.md`：前端纯前端改进建议清单（P0/P1 分级）
 - `docs/client-integration.md`：**客户多端对接待办接口接入说明**（访客会话、REST + Socket.IO 实时对账）
+- `docs/用户客服语音与多媒体交互系统开发说明书.md`：**语音 / 图片 / 文件 / 实时通话** 增量能力开发说明书（V1.0，含改造位置表与两期实施范围）
 - `designs/`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局 3 个 HTML 稿）
 - `output/`：设计文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，md / html / docx 三态）及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结、**客服会话处理流程图**）
 - `AI智能客服系统 第一期产品思维导图.pdf`
@@ -92,6 +94,7 @@ ai-customer-service-system/
 │   ├── superpowers/            # 设计规格（specs）与实施计划（plans）
 │   ├── frontend-improvements.md # 前端改进建议清单（P0/P1 分级）
 │   └── client-integration.md   # 客户多端对接待办接口接入说明
+│   └── 用户客服语音与多媒体交互系统开发说明书.md # 语音/图片/文件/通话增量能力开发说明（V1.0）
 ├── designs/                    # 运营大屏视觉设计稿（3 个 HTML）
 ├── output/                     # 文档交付物与迭代说明（md / html / docx）
 └── src/
@@ -105,6 +108,7 @@ ai-customer-service-system/
     ├── aiService.js            # AI 一键接管服务层（本地模拟 / 后端代理 / OpenAI 兼容三模式）
     ├── aiApi.js                # AI 接管 API 封装（平台模型 CRUD/测试/用量、租户策略、会话接管/接回）
     ├── dashboardApi.js         # 运营大屏 API 封装 + 渠道配色 / 告警趋势结构归一化
+    ├── serviceLogApi.js        # 日志 API 封装（服务日志 / 系统日志 / 系统诊断，失败降级演示数据）
     ├── workbenchData.js        # 工作台数据层（会话种子数据 / 客服团队队列 / 分配联动）
     ├── chatClient.js           # 免登录访客对话客户端 SDK（独立访客会话 + REST + Realtime）
     ├── conversationApi.js      # 会话 REST API（建/恢复、消息、DTO 归一化）
@@ -119,7 +123,7 @@ ai-customer-service-system/
     ├── chat/                   # 客户聊天 Widget（CustomerChatWidget + 样式）
     ├── EmptyState.jsx          # 通用空状态组件
     ├── SlaCountdown.jsx        # SLA 实时倒计时组件
-    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / aiApi / dashboardApi / workbenchData / chatClient / conversationApi / conversationRealtime / dashboardInsights）
+    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / aiApi / dashboardApi / serviceLogApi / workbenchData / chatClient / conversationApi / conversationRealtime / dashboardInsights）
     └── *.css                   # 各模块样式（styles / admin / auth / approval / polish / prototype / dashboard / logs / customer-center / chat-widget / tickets）
 ```
 
@@ -144,8 +148,9 @@ ai-customer-service-system/
 ### src/approvalData.js — 审核数据层
 模拟后端三张表（邀请码 / 注册申请 / 激活账号），localStorage 持久化：
 - **邀请码**：平台派发机构邀请码（`T-INV-*`）、机构派发客服邀请码（`A-INV-*`，绑定机构），支持撤销与一次性使用
-- **注册申请**：提交申请即消耗邀请码；机构申请仅平台端审核，客服申请需机构端 + 平台端两级审核，任一端驳回释放邀请码
-- **激活账号**：两端均通过后创建用户（机构管理员 / 客服）并写入用户表，登录时校验激活状态
+- **注册申请**：提交申请即消耗邀请码；机构申请仅平台端审核，客服申请由机构端**单级审核**通过即激活，驳回释放邀请码
+- **激活账号**：对应端审核通过后创建用户（机构管理员 / 客服）并写入用户表，登录时校验激活状态
+- **旧数据迁移**：`migrateLegacyTwoStageApprovals` 自动将旧版「机构端已过、等待平台终审」的客服申请直接激活（兼容两级审核历史数据）
 
 ### src/aiService.js — AI 一键接管服务层
 为会话工作台提供「AI 接管」能力（v0.4 的本地模拟引擎，v0.6 已升级为后端可审计闭环，见 `aiApi.js`）：
@@ -160,9 +165,15 @@ ai-customer-service-system/
 - **会话流转**：`takeoverConversationByAi`（人工 → AI 接管）/ `reclaimConversationFromAi`（AI → 人工接回）
 
 ### src/dashboardApi.js — 运营大屏 API 封装
-- `fetchDashboardOverview`：拉取运营大屏总览数据（机构管理员 = 本机构，超管 = 全平台；失败由调用方降级为演示数据）
+- `fetchDashboardOverview`：拉取运营大屏总览数据（机构管理员 = 本机构，超管 = 全平台；可传 `tenantId` 指定单机构；失败由调用方降级为演示数据）
 - `decorateChannelShare`：后端只回传 label/value，前端补齐渠道配色与变化幅度字段
 - `normalizeAlertTrend`：补齐告警趋势（warnings / errors / resolved）结构
+
+### src/serviceLogApi.js — 日志 API 封装
+- `fetchServiceLogs`：拉取服务日志（会话流转事件 + AI 调用失败，支持分页 / 按会话过滤）
+- `fetchSystemLogs`：拉取超管系统日志（全平台审计事件 + AI 调用失败，仅超管可用）
+- `fetchSystemDiagnostics`：系统运行时诊断（数据库延迟 / 内存 / AI 通道 / 队列水位）
+- `normalizeServiceLogRows`：后端行 → LogsView 行结构（时间统一本地格式、级别/角色兜底、sortKey 排序键）
 
 ### src/components/AiManagement.jsx — AI 模型中心与策略配置
 - `AiModelCenter`（平台）：已接入模型列表（logo / 状态 / 掩码密钥）+ 接入表单（接口类型快速填充、Base URL、模型 ID、API Key、显示名、超时 / 重试），支持编辑 / 测试 / 停用，顶部四格用量卡（累计调用 / 成功率 / Token / 平均耗时）
@@ -175,9 +186,9 @@ ai-customer-service-system/
 
 ### src/components/ApprovalCenter.jsx — 注册审核中心
 管理后台的审核界面，`mode` 区分超管 / 机构管理员两套视图：
-- 超管：机构入驻审核、客服两级审核（平台端操作）、机构邀请码派发与撤销
-- 机构管理员：本机构客服注册审核（机构端操作）、客服邀请码派发与撤销
-- 客服申请表格同时展示两端审核状态与“审核流程”指示条，终态一目了然
+- 超管：机构入驻审核、机构邀请码派发与撤销（客服审核已收敛到机构端）
+- 机构管理员：本机构客服注册审核（机构端操作，通过即激活）、客服邀请码派发与撤销
+- 客服申请表格展示审核状态与“审核流程”指示条，终态一目了然
 
 ### src/AuthPage.jsx — 双门户认证页
 根据 `portal` 属性读取 `authPortal.js` 的文案与角色分类，渲染服务端（客服/客户）或管理端（平台/机构管理员）的登录 / 注册 / 找回密码表单；注册按角色分流到对应表单。
@@ -209,8 +220,10 @@ ai-customer-service-system/
 ### src/components/CustomerCenter.jsx — 客户中心
 客服工作台客户目录界面，客户档案列表与检索。
 
-### src/components/LogsView.jsx — 服务日志视图
-`/workbench/service-logs` 客服操作与系统事件日志，按级别/时间查看。
+### src/components/LogsView.jsx — 日志视图（服务 / 系统 / 操作）
+- `useRemoteLogs`：通用远程日志加载——**后端优先（`fetchServiceLogs` / `fetchSystemLogs`），失败自动降级演示数据**，并标注「已连接数据库 / 演示数据」与更新时间
+- `useDiagnostics` + `DiagnosticsPanel`：系统诊断面板（仅系统日志页）——数据库 / 内存 / AI 通道 / 队列水位检查项，**15 秒自动轮询**，异常时给出联调排查提示（含 AI 24h 失败统计与最近错误码）
+- 三个数据集：`service`（服务日志）/ `system`（系统日志）/ `operation`（机构操作日志），按级别/时间筛选，支持导出 CSV
 
 ### src/chat/CustomerChatWidget.jsx — 客户聊天 Widget
 `/visitor/chat` 免登录访客聊天窗口（`autoOpen` 支持），通过 `chatClient` SDK 对接后端。
@@ -233,8 +246,8 @@ ai-customer-service-system/
 
 ### src/AdminConsole.jsx — 管理控制台
 `mode` 区分平台 / 机构两套导航：
-- `PlatformContent`：审核中心、机构列表（编辑）、**AI 模型中心（`AiModelCenter`）**、会话监控、告警中心、审计、监控、配置
-- `OrganizationContent`：审核中心、客服与组织（`AgentList` 组件 + 批量操作）、客户、知识库、路由策略、渠道、会话监控、**AI 客服管理（`TenantAiCenter`）**、运营
+- `PlatformContent`：审核中心、机构列表（编辑）、**AI 模型中心（`AiModelCenter`）**、会话监控、告警中心、审计、监控、**系统日志（`LogsView` + 诊断面板）**、配置
+- `OrganizationContent`：审核中心、客服与组织（`AgentList` 组件 + 批量操作）、客户、知识库、路由策略、渠道、会话监控、**AI 客服管理（`TenantAiCenter`）**、运营、机构操作日志
 - 两端总览内置 **LiveDashboard 实时运营大屏**（指标每 3 秒刷新、多视图轮播、全屏浏览）
 - 通用表格 / 标签 / 弹窗 / 空状态组件
 
@@ -249,7 +262,7 @@ ai-customer-service-system/
 - `SlaCountdown`：SLA 剩余时间实时倒计时，按风险档位变色
 
 ### 测试（src/*.test.js）
-`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / 两级审核状态机 / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`aiApi.test.js`（平台模型 / 租户策略 / 会话接管端点）、`dashboardApi.test.js`（大屏数据装饰与归一化）、`workbenchData.test.js`（分配映射 / 团队队列）、`chatClient.test.js`（访客会话 / 客户端）、`conversationApi.test.js`（会话 REST 归一化 / **自动翻页**）、`conversationRealtime.test.js`（实时事件去重）、`dashboardInsights.test.js`（看板洞察指标），共 **72 个用例**，`npm test` 全绿。
+`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / **单级审核状态机** / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`aiApi.test.js`（平台模型 / 租户策略 / 会话接管端点）、`dashboardApi.test.js`（大屏数据装饰与归一化）、`serviceLogApi.test.js`（日志查询 / 行归一化）、`workbenchData.test.js`（分配映射 / 团队队列）、`chatClient.test.js`（访客会话 / 客户端）、`conversationApi.test.js`（会话 REST 归一化 / **自动翻页**）、`conversationRealtime.test.js`（实时事件去重）、`dashboardInsights.test.js`（看板洞察指标），共 **75 个用例**，`npm test` 全绿。
 
 ### docs/ 与 output/ — 文档与原型
 - `docs/原型设计/*.html`：7 个可独立打开的高保真原型页
@@ -267,7 +280,7 @@ npm install
 # 启动开发服务器（默认 http://localhost:5173）
 npm run dev
 
-# 运行单元测试（72 个用例）
+# 运行单元测试（75 个用例）
 npm test
 
 # 生产构建

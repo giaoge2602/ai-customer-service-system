@@ -28,3 +28,21 @@
 .logs-note{font-size:10px;color:#a2adbd;margin:0}
 @media(max-width:1100px){.logs-summary{grid-template-columns:repeat(2,1fr)}.logs-search{max-width:none}}
 @media(max-width:760px){.logs-summary{gap:8px}.logs-count{width:100%;margin-left:0}}
+
+/* 系统诊断面板：崩溃与联调排查（超管系统日志） */
+.logs-diag{border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px 16px}
+.logs-diag.degraded{border-color:#f0d1d0;background:#fffafa}
+.diag-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.diag-head strong{font-size:13px;color:#26364e}
+.diag-state{font-size:11px;font-weight:650;color:#2fa36b;background:#e8f7f0;border-radius:999px;padding:3px 10px}
+.diag-state.bad{color:#c24d48;background:#fdeeee}
+.diag-meta{font-size:10px;color:#98a5b6;margin-left:auto}
+.diag-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+.diag-grid article{border:1px solid var(--line-soft);border-radius:7px;padding:10px 12px;background:#fbfcfe;min-width:0}
+.diag-grid article.bad{border-color:#f0d1d0;background:#fff7f6}
+.diag-grid span{font-size:10px;color:#77859a;display:block}
+.diag-grid strong{display:block;font-size:16px;color:#26364e;margin:5px 0 3px;font-variant-numeric:tabular-nums}
+.diag-grid article.bad strong{color:#c24d48}
+.diag-grid small{font-size:9.5px;color:#93a0b1;display:block;line-height:1.5}
+.diag-tip{margin:11px 0 0;font-size:10.5px;color:#a3542c;background:#fff6ec;border:1px solid #f0dfc0;border-radius:6px;padding:8px 11px;line-height:1.7}
+@media(max-width:1100px){.diag-grid{grid-template-columns:repeat(2,1fr)}}

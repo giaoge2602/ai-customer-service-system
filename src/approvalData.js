@@ -3,7 +3,7 @@
  * ------------------------------------------------------------
  * 模拟后端三张表：邀请码 / 注册申请 / 激活账号，localStorage 持久化。
  *  - 机构入驻：超管派发 tenant 邀请码 → 申请人填写并提交 → 平台端审核 → 激活机构管理员账号
- *  - 客服入职：机构管理员派发 agent 邀请码（绑定机构）→ 申请人填写并提交 → 机构端 + 平台端两级审核 → 激活客服账号
+ *  - 客服入职：机构管理员派发 agent 邀请码（绑定机构）→ 申请人填写并提交 → 机构端单级审核 → 激活客服账号
  * 接入后端后，将各函数实现替换为 API 调用即可，调用方无需改动。
  */
 
@@ -109,6 +109,20 @@ function ensureSeed(storage) {
   if (readTable(KEYS.invites, storage).length === 0) writeTable(KEYS.invites, seedInvites, storage)
   if (readTable(KEYS.approvals, storage).length === 0) writeTable(KEYS.approvals, seedApprovals, storage)
   if (readTable(KEYS.users, storage).length === 0) writeTable(KEYS.users, seedUsers, storage)
+  migrateLegacyTwoStageApprovals(storage)
+}
+
+/** 旧版两级审核数据迁移：客服申请机构端已通过但仍在等待平台终审的，直接激活（现为机构单级审核） */
+function migrateLegacyTwoStageApprovals(storage) {
+  const approvals = readTable(KEYS.approvals, storage)
+  let changed = false
+  const next = approvals.map((approval) => {
+    if (approval.kind !== 'agent' || approval.status !== 'pending' || approval.orgApproval !== 'approved') return approval
+    changed = true
+    const user = activateUser(approval, storage)
+    return { ...approval, status: 'active', userId: user.userId }
+  })
+  if (changed) writeTable(KEYS.approvals, next, storage)
 }
 
 // ==================== 邀请码 ====================
@@ -210,9 +224,9 @@ export function findApprovalByEmail(email, storage) {
 }
 
 /**
- * 处理审核（两级审核状态机）
+ * 处理审核（单级审核状态机）
  *  - tenant 申请：仅 platform 端审核；通过即激活
- *  - agent 申请：org + platform 两端都通过才激活；任一端驳回即作废并释放邀请码
+ *  - agent 申请：org 端审核通过即激活；驳回即作废并释放邀请码
  */
 export function updateApproval(id, { stage, decision, reviewedBy = '' }, storage) {
   ensureSeed(storage)
@@ -222,7 +236,7 @@ export function updateApproval(id, { stage, decision, reviewedBy = '' }, storage
   const approval = approvals[index]
   if (approval.status !== 'pending') return { error: '该申请已处理，无需重复审核' }
   if (approval.kind === 'tenant' && stage !== 'platform') return { error: '机构入驻申请仅由平台管理员审核' }
-  if (approval.kind === 'agent' && !['org', 'platform'].includes(stage)) return { error: '审核阶段不正确' }
+  if (approval.kind === 'agent' && stage !== 'org') return { error: '客服注册申请仅由机构管理员审核' }
 
   const next = {
     ...approval,
@@ -238,8 +252,8 @@ export function updateApproval(id, { stage, decision, reviewedBy = '' }, storage
       invite.code === approval.inviteCode && invite.status === 'used' ? { ...invite, status: 'valid', usedBy: null } : invite
     )), storage)
   } else {
-    const bothApproved = approval.kind === 'tenant' ? next.platformApproval === 'approved' : next.orgApproval === 'approved' && next.platformApproval === 'approved'
-    if (bothApproved) {
+    const approved = approval.kind === 'tenant' ? next.platformApproval === 'approved' : next.orgApproval === 'approved'
+    if (approved) {
       const user = activateUser(next, storage)
       next.status = 'active'
       next.userId = user.userId

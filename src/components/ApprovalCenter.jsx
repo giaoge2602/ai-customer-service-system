@@ -32,8 +32,8 @@ function ActionButtons({ approval, isPlatform, onDecide }) {
 
 /**
  * 注册审核中心
- * mode='platform'     → 超管：机构入驻审核 + 客服两级审核（平台端）+ 机构邀请码管理
- * mode='organization' → 机构管理员：本机构客服审核（机构端）+ 客服邀请码管理
+ * mode='platform'     → 超管：机构入驻审核 + 机构邀请码管理（客服注册由机构单级审核，超管不再参与）
+ * mode='organization' → 机构管理员：本机构客服审核（机构端通过即激活）+ 客服邀请码管理
  */
 export default function ApprovalCenter({ mode, session, onNotify }) {
   const isPlatform = mode === 'platform'
@@ -45,7 +45,7 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
 
   const reload = () => {
     setInvites(listInvites())
-    setApprovals(listApprovals(isPlatform ? {} : { kind: 'agent', tenantId }))
+    setApprovals(listApprovals(isPlatform ? { kind: 'tenant' } : { kind: 'agent', tenantId }))
   }
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
     reload()
     if (result.status === 'active') onNotify('审核通过，账号已激活，可以登录了')
     else if (result.status === 'rejected') onNotify('已驳回该申请，邀请码已释放')
-    else onNotify(decision === 'approved' ? '已通过本端审核，等待另一方审核' : '已驳回该申请')
+    else onNotify(decision === 'approved' ? '已通过审核' : '已驳回该申请')
   }
 
   const generateInvite = (event) => {
@@ -90,7 +90,7 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
   const waitingCount = approvals.filter((a) => a.status === 'pending' && a[`${isPlatform ? 'platform' : 'org'}Approval`] === 'pending').length
 
   const tabs = isPlatform
-    ? [['tenant', `机构入驻审核`, pendingTenants.length], ['agent', `客服两级审核`, waitingCount], ['invites', '邀请码管理']]
+    ? [['tenant', `机构入驻审核`, pendingTenants.length], ['invites', '邀请码管理']]
     : [['agent', `客服注册审核`, waitingCount], ['invites', '邀请码管理']]
 
   return (
@@ -141,16 +141,12 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
       {tab === 'agent' && (
         <section className="approval-panel">
           <SectionTitle
-            title={isPlatform ? '客服注册审核' : '本机构客服注册审核'}
-            subtitle={isPlatform
-              ? '客服申请需机构管理员与平台管理员两级审核均通过后，账号方可激活'
-              : '本端通过后仍需平台管理员终审，两端均通过账号方可激活'}
+            title="本机构客服注册审核"
+            subtitle="机构管理员通过后账号即激活，客服即可登录工作台"
           />
           <div className="approval-flow-note">
             <span>审核流程</span>
             <em className={approvals.some((a) => a.status === 'pending' && a.orgApproval === 'pending') ? 'active' : ''}>① 机构管理员审核</em>
-            <i>→</i>
-            <em className={approvals.some((a) => a.status === 'pending' && a.orgApproval === 'approved' && a.platformApproval === 'pending') ? 'active' : ''}>② 平台管理员终审</em>
             <i>→</i>
             <em>账号激活</em>
           </div>
@@ -158,7 +154,7 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
             <table className="admin-table approval-table">
               <caption className="sr-only">客服注册申请列表</caption>
               <thead>
-                <tr><th>姓名</th><th>邮箱</th><th>所属机构</th><th>邀请码</th><th>提交时间</th><th>机构端审核</th><th>平台端审核</th><th>操作</th></tr>
+                <tr><th>姓名</th><th>邮箱</th><th>所属机构</th><th>邀请码</th><th>提交时间</th><th>机构端审核</th><th>操作</th></tr>
               </thead>
               <tbody>
                 {pendingAgents.map((approval) => (
@@ -169,11 +165,10 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
                     <td><code>{approval.inviteCode}</code></td>
                     <td>{approval.createdAt}</td>
                     <td><StatusPill value={approval.orgApproval || 'pending'} /></td>
-                    <td><StatusPill value={approval.platformApproval} /></td>
-                    <td><ActionButtons approval={approval} isPlatform={isPlatform} onDecide={decide} /></td>
+                    <td><ActionButtons approval={approval} isPlatform={false} onDecide={decide} /></td>
                   </tr>
                 ))}
-                {pendingAgents.length === 0 && <tr><td colSpan="8"><div className="admin-table-empty">暂无客服注册申请</div></td></tr>}
+                {pendingAgents.length === 0 && <tr><td colSpan="7"><div className="admin-table-empty">暂无客服注册申请</div></td></tr>}
               </tbody>
             </table>
           </div>

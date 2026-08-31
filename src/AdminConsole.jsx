@@ -204,19 +204,43 @@ export default function AdminConsole({ mode = 'platform', session, onLogout }) {
 }
 
 function pageTitle(module, platform) { const map = platform ? { overview: '平台运营总览', organizations: '机构列表', customerCenter: '客户管理中心', approvals: '注册审核中心', conversations: '会话监控', models: 'AI 模型中心', alerts: '告警中心', audit: '安全与审计', monitoring: '运维监控', logs: '系统日志' } : { overview: '机构运营总览', people: '客服', approvals: '客服审核中心', customers: '客户中心', conversations: '会话监控', aiService: 'AI 客服管理', knowledge: '知识库运营', channels: '渠道与开放能力', operations: '服务运营', oplogs: '机构操作日志' }; return map[module] || '管理中心' }
-function pageDescription(module, platform) { const map = platform ? { overview: '实时监控平台运营状态，聚合查看机构健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与机构隔离', customerCenter: '跨机构查询客户档案，支持增删改查与历史会话追溯', approvals: '审核机构入驻与客服入职申请，管理邀请码派发，两级审核通过后账号方可激活', conversations: '跨机构查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', models: '统一管理模型供应商、版本和默认策略', alerts: '管理平台告警，及时处理异常事件', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度', logs: '聚合检索平台关键链路日志，按级别追踪异常与告警事件' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', approvals: '审核本机构客服入职申请，管理客服邀请码，机构与平台两端通过后账号激活', customers: '统一管理跨渠道客户档案、标签与隐私状态', conversations: '查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', knowledge: '管理知识导入、审核发布与检索命中质量', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表', oplogs: '追溯机构内知识发布、账号变更与配置调整等关键操作' }; return map[module] || '配置和运营你的客户服务团队' }
+function pageDescription(module, platform) { const map = platform ? { overview: '实时监控平台运营状态，聚合查看机构健康度、服务容量与平台风险', organizations: '管理机构生命周期、套餐配额与机构隔离', customerCenter: '跨机构查询客户档案，支持增删改查与历史会话追溯', approvals: '审核机构入驻申请，管理邀请码派发，客服注册由机构单级审核', conversations: '跨机构查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', models: '统一管理模型供应商、版本和默认策略', alerts: '管理平台告警，及时处理异常事件', audit: '追踪关键操作、内容合规和数据权利请求', monitoring: '实时观察消息链路、检索与 Webhook 健康度', logs: '聚合检索平台关键链路日志，按级别追踪异常与告警事件' } : { overview: '查看星河科技的服务质量、AI 效率与团队负载', people: '管理客服账号、技能组、排班和服务绩效', approvals: '审核本机构客服入职申请，管理客服邀请码，机构通过后账号即激活', customers: '统一管理跨渠道客户档案、标签与隐私状态', conversations: '查看异常会话记录，追溯完整聊天内容，上帝视角监控客服对话', knowledge: '管理知识导入、审核发布与检索命中质量', channels: '接入微信、企业微信、Widget 与开放 API', operations: '配置 SLA、质检、告警和运营报表', oplogs: '追溯机构内知识发布、账号变更与配置调整等关键操作' }; return map[module] || '配置和运营你的客户服务团队' }
 
 function PlatformContent({ module, stats, tenants: tenantRows, models: modelRows, logs, services: serviceRows, session, onToggleTenant, onEditTenant, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="platform" session={session} onNotify={onNotify} />; if (module === 'customerCenter') return <CustomerCenter onNotify={onNotify} />; if (module === 'organizations') return <><SectionHeader title="机构列表" subtitle={`共 ${tenantRows.length} 个机构 · 数据按机构隔离`} /><DataTable headers={['机构 ID', '套餐', '状态', '坐席使用', '今日会话', '配额使用', '最近活跃', '操作']} rows={tenantRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id} · {row.industry}</small></strong>, row.plan, <Pill tone={row.status === 'active' ? 'success' : row.status === 'review' ? 'warning' : 'muted'}>{row.statusText}</Pill>, row.agents, row.conversations, <Progress value={row.usage} />, row.lastActive, <span className="table-actions"><button className="table-action" onClick={() => onEditTenant(row)}>编辑</button><button className="table-action" onClick={() => { onToggleTenant(row.id); onNotify('机构状态已更新并写入审计') }}>{row.status === 'paused' ? '启用' : row.status === 'review' ? '审核' : '停用'}</button></span>])} /></>; if (module === 'models') return <><SectionHeader title="模型供应商" subtitle="3 个模型已接入 · 1 个生产中" /><div className="admin-card-grid">{modelRows.map((model) => <div className="model-card" key={model.id}><div className="model-card-head"><div className="model-logo">{model.provider.slice(0, 1)}</div><Pill tone={model.status === 'active' ? 'success' : model.status === 'testing' ? 'purple' : 'muted'}>{model.statusText}</Pill></div><h3>{model.name}</h3><p>{model.provider} · {model.mode}</p><div className="model-stats"><span>版本<strong>{model.version}</strong></span><span>平均延迟<strong>{model.latency}</strong></span><span>Token 用量<strong>{model.usage}</strong></span></div><button className={model.isDefault ? 'table-action disabled' : 'admin-outline-btn'} onClick={() => onNotify(model.isDefault ? '已是默认模型' : `${model.name} 已设为默认模型`)}>{model.isDefault ? '当前默认模型' : '设为默认模型'}</button></div>)}</div></>; if (module === 'audit') return <><SectionHeader title="审计事件" subtitle="所有关键操作均保留 requestId 和机构上下文" /><DataTable headers={['事件 ID', '操作者', '动作', '目标资源', '时间', '风险', '操作']} rows={logs.map((row) => [<code>{row.id}</code>, <strong>{row.actor}<small>{row.role}</small></strong>, row.action, row.target, row.time, <Pill tone={row.risk === 'high' ? 'danger' : row.risk === 'medium' ? 'warning' : 'success'}>{row.riskText}</Pill>, <button className="table-action" onClick={() => onNotify(`已打开 ${row.id} 详情`)}>查看详情</button>])} /></>; if (module === 'monitoring') return <><SectionHeader title="服务健康" subtitle="消息链路无静默丢失 · 最近一次巡检 14:29" /><div className="service-grid">{serviceRows.map((service) => <div className="service-card" key={service.key}><div className="service-icon"><AIcon name={service.key === 'rag' ? 'database' : 'pulse'} size={17} /></div><div><h3>{service.name}</h3><span>{service.statusText}</span></div><strong>{service.value}</strong><small>延迟 {service.latency}</small></div>)}</div><SectionHeader title="近期告警" subtitle="需要平台管理员关注的事件" /><div className="alert-list"><Alert text="知识检索服务 P95 延迟升高，已自动切换备用节点" tone="warning" time="12 分钟前"/><Alert text="TENANT-014 配额使用达到 92%，建议联系机构管理员" tone="danger" time="36 分钟前"/></div></>; if (module === 'conversations') return <ConversationMonitor mode="platform" session={session} agents={[]} />; if (module === 'alerts') return <AlertCenter />; if (module === 'logs') return <LogsView dataset="system" />; return <PlatformOverview stats={stats} tenants={tenantRows} logs={logs} onModal={onModal} onNotify={onNotify} /> }
 
 function OrganizationContent({ module, stats, agents: agentRows, customers: customerRows, docs, channels: channelRows, session, onToggleAgent, onPublishDoc, onToggleChannel, onModal, onNotify }) { if (module === 'approvals') return <ApprovalCenter mode="organization" session={session} onNotify={onNotify} />; if (module === 'people') return <><SectionHeader title="客服账号" subtitle={`${agentRows.length} 名客服 · ${agentRows.filter((row) => row.status === 'online').length} 人启用 · 数据来自数据库`} /><AgentList agents={agentRows} onToggle={onToggleAgent} onNotify={onNotify} /></>; if (module === 'customers') return <><SectionHeader title="客户档案" subtitle="跨渠道统一身份 · 敏感字段已脱敏" /><DataTable headers={['客户', '客户等级', '来源', '手机号', '标签', '历史会话', '最近咨询', '隐私状态']} rows={customerRows.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, <Pill tone={row.level.includes('VIP') || row.level.includes('高价值') ? 'purple' : 'muted'}>{row.level}</Pill>, row.source, row.phone, <div className="tag-inline">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>, row.sessions, row.last, <Pill tone={row.privacy === '已授权' ? 'success' : 'warning'}>{row.privacy}</Pill>])} /></>; if (module === 'knowledge') return <><SectionHeader title="知识文档" subtitle="4 个知识来源 · 1 个待审核 · 命中率 91.4%" /><DataTable headers={['文档名称', '类型', '状态', '分片数', '命中率', '最近更新', '操作']} rows={docs.map((row) => [<strong className="table-name">{row.name}<small>{row.id}</small></strong>, row.type, <Pill tone={row.status === 'published' ? 'success' : row.status === 'review' ? 'warning' : 'purple'}>{row.statusText}</Pill>, row.chunks, row.hitRate, row.updated, <button className="table-action" onClick={() => row.status === 'published' ? onNotify('已打开文档详情') : onPublishDoc(row.id)}>{row.status === 'published' ? '查看' : '发布'}</button>])} /></>; if (module === 'channels') return <><SectionHeader title="渠道连接" subtitle="3 个渠道正常 · 1 个待配置" /><div className="channel-admin-grid">{channelRows.map((channel) => <div className="channel-admin-card" key={channel.id}><div className="channel-admin-head"><div className="channel-symbol"><AIcon name={channel.name === 'Open API' ? 'database' : 'channel'} size={18} /></div><Pill tone={channel.status === 'connected' ? 'success' : 'warning'}>{channel.statusText}</Pill></div><h3>{channel.name}</h3><p>{channel.description}</p><div><span>今日会话</span><strong>{channel.conversations}</strong><small>{channel.updated}</small></div><button className="admin-outline-btn" onClick={() => onToggleChannel(channel.id)}>{channel.status === 'connected' ? '断开连接' : '重新连接'}</button></div>)}</div></>; if (module === 'operations') return <Operations onNotify={onNotify} />; if (module === 'oplogs') return <LogsView dataset="operation" />; if (module === 'conversations') return <ConversationMonitor mode="organization" session={session} agents={agentRows} />; return <OrganizationOverview stats={stats} agentRows={agentRows} onModal={onModal} onNotify={onNotify} /> }
 
 function PlatformOverview({ stats, tenants: rows, logs, onNotify }) {
+  const [overview, setOverview] = useState(null)
+  const [live, setLive] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const data = await fetchDashboardOverview()
+        if (!cancelled) { setOverview(data); setLive(true) }
+      } catch {
+        if (!cancelled) setLive(false)
+      }
+    }
+    load()
+    const timer = setInterval(load, 3000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [])
+  const dashboards = useMemo(() => buildPlatformPanels(overview), [overview])
+  const statCards = dashboards?.stats || stats
   return <>
-    <MetricGrid stats={stats} />
-    <LiveDashboard />
+    <MetricGrid stats={statCards} />
+    <LiveDashboard
+      metrics={overview?.metrics || realtimeMetrics}
+      panels={dashboards?.panels || platformPanels}
+      fullGrid={dashboards?.fullGrid || platformFullGrid}
+      screenTitle="平台实时数据大屏"
+      live={live}
+    />
     <div className="admin-content-grid two-thirds">
-      <SectionCard title="平台趋势" subtitle="近 7 日会话量 · 新增机构 · AI 解决率">
-        <MultiTrendChart />
+      <SectionCard title="平台趋势" subtitle={live ? '近 7 日结束会话 · 高优先级新增 · AI 调用失败' : '近 7 日会话量 · 新增机构 · AI 解决率'}>
+        <MultiTrendChart labels={dashboards?.trend?.labels} series={dashboards?.trend?.series} />
       </SectionCard>
       <SectionCard title="机构配额排行" action="查看全部">
         <div className="rank-list">
@@ -257,12 +281,11 @@ function smoothPath(points) {
   }
   return d
 }
-function MultiTrendChart() {
-  const { labels, conversations, newOrgs, aiRate } = platformTrend
-  const series = [
-    { name: '会话量', color: '#3558d4', values: conversations, latest: conversations[conversations.length - 1].toLocaleString() },
-    { name: '新增机构', color: '#22835d', values: newOrgs, latest: `${newOrgs[newOrgs.length - 1]} 家` },
-    { name: 'AI 解决率', color: '#b6791a', values: aiRate, latest: `${aiRate[aiRate.length - 1]}%` },
+function MultiTrendChart({ labels = platformTrend.labels, series: customSeries } = {}) {
+  const series = customSeries || [
+    { name: '会话量', color: '#3558d4', values: platformTrend.conversations, latest: platformTrend.conversations[platformTrend.conversations.length - 1].toLocaleString() },
+    { name: '新增机构', color: '#22835d', values: platformTrend.newOrgs, latest: `${platformTrend.newOrgs[platformTrend.newOrgs.length - 1]} 家` },
+    { name: 'AI 解决率', color: '#b6791a', values: platformTrend.aiRate, latest: `${platformTrend.aiRate[platformTrend.aiRate.length - 1]}%` },
   ]
   const w = 560
   const h = 180
@@ -315,8 +338,8 @@ function BarChart({ items, className = '' }) {
     </div>
   )
 }
-function TodayPanel() {
-  const { organizations, agents } = buildDashboardComparisons(todayRealtime, realtimeMetrics, [])
+function TodayPanel({ today = todayRealtime, realtime = realtimeMetrics }) {
+  const { organizations, agents } = buildDashboardComparisons(today, realtime, [])
   return (
     <div className="platform-comparison-grid">
       <section className="relationship-card organization-relationship">
@@ -324,7 +347,7 @@ function TodayPanel() {
         <div className="relationship-primary"><div><span>机构总数</span><strong>{organizations.total}</strong></div><i>包含</i><div><span>活跃机构</span><strong>{organizations.active}</strong></div></div>
         <div className="relationship-track" role="img" aria-label={`活跃机构 ${organizations.active} 家，非活跃机构 ${organizations.inactive} 家`}><i className="active" style={{ width: `${organizations.activeRate}%` }} /><i className="inactive" style={{ width: `${100 - organizations.activeRate}%` }} /></div>
         <div className="relationship-legend"><span><i className="active" />活跃 {organizations.active}</span><span><i className="inactive" />非活跃 {organizations.inactive}</span></div>
-        <div className="relationship-details"><span>近 7 日新增<strong>+{todayRealtime.newOrgs7d}</strong></span><span>待审核机构<strong>{todayRealtime.pendingOrgs}</strong></span><span>活跃率<strong>{organizations.activeRate}%</strong></span></div>
+        <div className="relationship-details"><span>近 7 日新增<strong>+{today.newOrgs7d ?? 0}</strong></span><span>待审核机构<strong>{today.pendingOrgs ?? 0}</strong></span><span>活跃率<strong>{organizations.activeRate}%</strong></span></div>
       </section>
       <section className="relationship-card agent-relationship">
         <header><div><span>客服容量</span><strong>总量与工作状态</strong></div><b>{agents.onlineRate}%</b></header>
@@ -380,7 +403,9 @@ function TokenTrendChart({ data = tokenTrend }) {
   const line = smoothPath(pts)
   const area = `${line} L${pts[pts.length - 1].x},${h - 8} L${pts[0].x},${h - 8} Z`
   const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)
-  const dayOnDay = Math.round(((values[values.length - 1] - values[values.length - 2]) / values[values.length - 2]) * 1000) / 10
+  const dayOnDay = values[values.length - 2] > 0
+    ? Math.round(((values[values.length - 1] - values[values.length - 2]) / values[values.length - 2]) * 1000) / 10
+    : 0
   return (
     <div className="token-trend-wrap">
       <svg viewBox={`0 0 ${w} ${h}`} className="token-trend-chart" preserveAspectRatio="none" role="img" aria-label="近 7 日 Token 消耗趋势">
@@ -441,6 +466,81 @@ const platformFullGrid = [
   { title: '订单达成率', icon: 'clock', render: <OrgCompletionChart /> },
   { title: '客户满意度（按机构）', icon: 'star', render: <SatisfactionCarousel /> },
 ]
+
+function PlatformCapacityPanel({ realtime }) {
+  return (
+    <div className="dd-panel">
+      <div className="dd-side-stats" style={{ minWidth: 220 }}>
+        <div><span>客服总数</span><strong>{realtime.totalAgents}</strong></div>
+        <div><span>在线客服</span><strong>{realtime.onlineAgents}</strong></div>
+        <div><span>接待中</span><strong>{realtime.busyAgents}</strong></div>
+        <div><span>空闲</span><strong>{realtime.idleAgents}</strong></div>
+      </div>
+    </div>
+  )
+}
+
+const percentOf = (value, total) => (total > 0 ? Math.round((value / total) * 1000) / 10 : 0)
+
+/** 由后端平台 overview 构建平台大屏板块与指标卡；无数据时退回演示面板 */
+function buildPlatformPanels(overview) {
+  if (!overview) return null
+  const metrics = overview.metrics
+  const today = {
+    orgs: overview.orgs ?? 0,
+    activeOrgs: overview.activeOrgs ?? 0,
+    newOrgs7d: overview.newOrgs7d ?? 0,
+    pendingOrgs: 0,
+    agents: metrics.totalAgents,
+    onlineAgents: metrics.onlineAgents,
+  }
+  const realtime = { busyAgents: metrics.busyAgents, idleAgents: metrics.idleAgents }
+  const slices = decorateChannelShare(overview.channelShare)
+  const days = normalizeAlertTrend(overview.alertTrend)
+  const alerts = overview.alerts?.length ? overview.alerts : platformAlertItems
+  // 全平台满意度按机构：无评价的机构不展示
+  const maxConversations = Math.max(...(overview.tenants || []).map((tenant) => tenant.conversations7d), 1)
+  const satOrgs = (overview.tenants || []).map((tenant) => ({
+    id: tenant.id,
+    name: tenant.name,
+    conversations: tenant.conversations7d,
+    satisfaction: tenant.satisfaction,
+    reviewCount: tenant.reviewCount,
+    activity: percentOf(tenant.conversations7d, maxConversations),
+  }))
+  const stats = [
+    { label: '机构总数', value: String(today.orgs), sub: { label: '活跃机构', value: String(today.activeOrgs), rate: `${percentOf(today.activeOrgs, today.orgs)}%` }, tone: 'blue', icon: 'building' },
+    { label: '客服总数', value: String(metrics.totalAgents), sub: { label: '在线客服', value: String(metrics.onlineAgents), rate: `${percentOf(metrics.onlineAgents, metrics.totalAgents)}%` }, tone: 'green', icon: 'users' },
+    { label: '今日会话', value: overview.today.todayConversations.toLocaleString(), sub: { label: '排队等待', value: String(metrics.queueLength), rate: `进行中 ${metrics.activeConversations}` }, tone: 'purple', icon: 'chat' },
+    { label: 'AI 接管率', value: `${metrics.aiResolution}%`, sub: { label: '近 7 日口径', value: 'AI 接待占比', rate: `首响 ${metrics.avgResponseTime}s` }, tone: 'orange', icon: 'spark' },
+    { key: 'satisfaction', label: '客户满意度', tone: 'blue', icon: 'star', orgs: satOrgs },
+  ]
+  return {
+    stats,
+    panels: [
+      { key: 'today', title: '今日实时', render: <TodayPanel today={today} realtime={realtime} /> },
+      { key: 'share', title: '会话构成', render: <SharePanel slices={slices} /> },
+      { key: 'token', title: 'Token 消耗', render: <TokenTrendChart data={overview.tokenTrend} /> },
+      { key: 'alert', title: '风险告警', render: <AlertSummary days={days} alerts={alerts} /> },
+    ],
+    fullGrid: [
+      { title: '今日实时', icon: 'building', render: <TodayPanel today={today} realtime={realtime} /> },
+      { title: '会话构成', icon: 'chart', render: <SharePanel slices={slices} /> },
+      { title: 'Token 消耗', icon: 'spark', render: <TokenTrendChart data={overview.tokenTrend} /> },
+      { title: '机构活跃度（近 7 日会话量占比）', icon: 'pulse', render: <OrgActivityChart rows={satOrgs} /> },
+      { title: '客服容量', icon: 'users', render: <PlatformCapacityPanel realtime={metrics} /> },
+      { title: '客户满意度（按机构）', icon: 'star', render: <SatisfactionCarousel orgs={satOrgs} /> },
+    ],
+    trend: {
+      labels: days.map((day) => day.label),
+      series: [
+        { name: '结束会话', color: '#3558d4', values: days.map((day) => day.resolved), latest: String(days[days.length - 1].resolved) },
+        { name: '高优先级新增', color: '#22835d', values: days.map((day) => day.warnings), latest: String(days[days.length - 1].warnings) },
+        { name: 'AI 调用失败', color: '#b6791a', values: days.map((day) => day.errors), latest: String(days[days.length - 1].errors) },
+      ],
+    },
+  }
+}
 
 // ==================== 机构业务大屏面板 ====================
 function OrgTodayPanel({ today = orgTodayRealtime, realtime = orgRealtime }) {
@@ -661,8 +761,17 @@ function MetricGrid({ stats }) {
   )
 }
 function SatisfactionCard({ stat }) {
-  const orgs = orgActivityData.filter((o) => o.satisfaction > 0)
+  const orgs = (stat.orgs || orgActivityData).filter((o) => o.satisfaction > 0)
   const [idx, setIdx] = useState(0)
+  if (!orgs.length) return (
+    <div className={`admin-metric-card paired ${stat.tone} sat-card`}>
+      <div className="metric-head">
+        <span>{stat.label}</span>
+        <div className="metric-icon"><AIcon name={stat.icon} size={16} /></div>
+      </div>
+      <div className="sat-card-body"><strong>—</strong><small>暂无客户评价数据</small></div>
+    </div>
+  )
   const org = orgs[idx]
   const switchOrg = (dir) => setIdx((i) => (i + dir + orgs.length) % orgs.length)
   return (
@@ -681,9 +790,12 @@ function SatisfactionCard({ stat }) {
     </div>
   )
 }
-function SatisfactionCarousel() {
-  const orgs = orgActivityData.filter((o) => o.satisfaction > 0)
+function SatisfactionCarousel({ orgs: sourceOrgs = orgActivityData }) {
+  const orgs = sourceOrgs.filter((o) => o.satisfaction > 0)
   const [idx, setIdx] = useState(0)
+  if (!orgs.length) return (
+    <div className="sat-carousel"><div className="sat-carousel-inner"><div className="sat-score">—</div><div className="sat-count">暂无客户评价数据</div></div></div>
+  )
   const org = orgs[idx]
   const stars = Math.round(org.satisfaction)
   const switchOrg = (dir) => setIdx((i) => (i + dir + orgs.length) % orgs.length)

@@ -2,9 +2,12 @@ import { authRequest } from './api.js'
 
 const DASHBOARD_CHANNEL_COLORS = ['#4163cb', '#22835d', '#7656c9', '#b6791a', '#4d7ea8', '#c04d48']
 
-/** 拉取运营大屏总览数据（机构管理员=本机构，超管=全平台；失败由调用方降级为演示数据） */
-export async function fetchDashboardOverview() {
-  return authRequest('/dashboard/overview')
+/** 拉取运营大屏总览数据（机构管理员=本机构，超管=全平台；可传 tenantId 指定单机构；失败由调用方降级为演示数据） */
+export async function fetchDashboardOverview(params = {}) {
+  const query = new URLSearchParams()
+  if (params.tenantId) query.set('tenantId', params.tenantId)
+  const suffix = query.toString() ? `?${query}` : ''
+  return authRequest(`/dashboard/overview${suffix}`)
 }
 
 /** 后端只回传 label/value，前端补齐大屏用的颜色与变化幅度字段 */

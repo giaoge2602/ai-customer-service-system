@@ -2,6 +2,38 @@
 
 本文件使用**中文**记录每个版本的任务产出、功能新增与修复内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 惯例。
 
+## [v0.7.0] - 2026-08-31
+
+### ✨ 新增：客服审核单级化 + 日志 API 化与系统诊断
+
+本次迭代完成两件事：客服注册审核从「机构 + 平台两级」简化为**机构单级审核**（含旧数据自动迁移）；服务日志 / 系统日志全面**后端 API 化**，新增系统运行时诊断面板与语音多媒体交互开发说明书。
+
+#### 新增功能
+
+**客服审核流程简化（两级 → 机构单级）**
+- `approvalData.js`：客服申请由机构端审核**通过即激活**，平台阶段不再参与；驳回仍作废并释放邀请码
+- `migrateLegacyTwoStageApprovals`：旧版「机构端已过、等待平台终审」的客服申请自动迁移为直接激活，兼容历史数据
+- 文案与视图同步：`AuthPage` 注册提示、`ApprovalCenter` 审核视图、`auth.test.js` / `approvalData.test.js` 用例同步改写（平台阶段审核客服申请现在返回错误）
+
+**日志 API 化与系统诊断（`serviceLogApi.js` + `LogsView` 增强）**
+- `fetchServiceLogs` / `fetchSystemLogs`：服务日志（会话流转 + AI 调用失败）与超管系统日志（全平台审计）后端优先加载，失败自动降级演示数据，界面标注「已连接数据库 / 演示数据」与更新时间
+- `fetchSystemDiagnostics` + `DiagnosticsPanel`：**系统诊断面板**（系统日志页）——数据库 / 内存 / AI 通道 / 队列水位检查项，**15 秒自动轮询**，运行时长 / 版本 / Node / 平台，AI 24h 失败统计与最近错误码，异常时给出联调排查提示
+- `normalizeServiceLogRows`：后端行 → 视图行归一化（时间本地格式、级别/角色兜底、排序键）
+- `dashboardApi.fetchDashboardOverview` 支持 `tenantId` 参数（单机构视图）
+- `AdminConsole` 各模块页增加运营级描述文案
+
+**文档**
+- 新增 `docs/用户客服语音与多媒体交互系统开发说明书.md`（V1.0）：语音消息 / ASR 转写 / 图片文件上传 / 第二期实时语音通话的增量开发说明书，含现有代码改造位置表与两期实施范围
+
+**工程化与测试**
+- 单元测试扩展至 **75 个用例**（新增 `serviceLogApi.test.js`，审核用例改写），`npm test` 全绿
+- README 同步更新（单级审核、日志 API、诊断面板、新文档与 75 用例）
+
+#### 技术说明
+- 审核数据层提供 `migrateLegacyTwoStageApprovals` 幂等迁移，旧 localStorage 数据无需手动清理
+- 日志接口按角色隔离：服务日志（坐席/管理员）、系统日志（仅超管）、机构操作日志（本地演示）
+- 诊断面板不阻塞日志浏览，后端不可用时降级显示「诊断接口不可用（后端未启动或版本过旧）」
+
 ## [v0.6.0] - 2026-08-30
 
 ### ✨ 新增：可审计 AI 接管闭环（AI Takeover）

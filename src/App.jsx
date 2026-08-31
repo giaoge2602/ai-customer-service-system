@@ -64,7 +64,9 @@ function ProtectedRoute({ session, children }) {
 function WorkbenchRoute({ session, onLogout }) {
   const params = useParams()
   const navigate = useNavigate()
-  const area = getWorkArea(`/workbench/${params.conversationId || ''}`)
+  const location = useLocation()
+  // /workbench/service-logs 是静态路由（无 conversationId 参数），必须按真实路径解析区域
+  const area = getWorkArea(location.pathname.startsWith('/workbench') ? location.pathname : `/workbench/${params.conversationId || ''}`)
   if (area !== 'conversations') return <ServiceWorkspace area={area} session={session} onLogout={onLogout} />
   return <Workbench routeId={params.conversationId} navigate={navigate} session={session} onLogout={onLogout} />
 }
@@ -390,7 +392,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
           </section>
 
           <section className="chat-column" aria-label="消息工作区">
-            <div className="chat-header"><button ref={mobileListButtonRef} type="button" className="mobile-conversation-button icon-button subtle" aria-label="打开会话列表" aria-expanded={mobileListOpen} onClick={() => setMobileListOpen(true)}><Icon name="chat" size={17} /></button><div className={`customer-avatar ${selected.tone}`}>{selected.initials}</div><div className="chat-heading"><div><h2>{selected.name}</h2><span className="channel-text"><span className="channel-pill">{selected.channel}</span> #{selected.id}</span></div><StatusBadge item={selected} /></div><div className="chat-actions"><div className={`sla-clock ${selectedSla.risk}`}><span>状态</span><strong>{selectedSla.strong}</strong><small>{selectedSla.small}</small></div>{selected.status === 'human' && canReplyTo(selected, me) && <button type="button" className="ai-takeover-button" onClick={handToAi} title="将当前会话转交机构配置的AI模型"><Icon name="spark" size={14} />AI 接管</button>}{selected.status === 'ai_handling' && <button type="button" className="ai-takeover-button" onClick={reclaimFromAi}><Icon name="headset" size={14} />人工接回</button>}<button type="button" className="ai-takeover-button" onClick={inviteEvaluation} disabled={selected.status !== 'human' || !canReplyTo(selected, me)} title="问题处理完成后邀请客户评价"><Icon name="check" size={14} />问题已解决</button><button className="secondary-button" onClick={releaseSelected} disabled={selected.status !== 'human' || !canReplyTo(selected, me)}>退回队列</button><button className="danger-button" onClick={endConversation} disabled={['ai_handling','ended','evaluated'].includes(selected.status)}>结束会话</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div></div>
+            <div className="chat-header"><button ref={mobileListButtonRef} type="button" className="mobile-conversation-button icon-button subtle" aria-label="打开会话列表" aria-expanded={mobileListOpen} onClick={() => setMobileListOpen(true)}><Icon name="chat" size={17} /></button><div className={`customer-avatar ${selected.tone}`}>{selected.initials}</div><div className="chat-heading"><div><h2>{selected.name}</h2><span className="channel-text" title={`会话编号 ${selected.id}`}><span className="channel-pill">{selected.channel}</span><span className="conversation-id">#{shortConversationId(selected.id)}</span></span></div><StatusBadge item={selected} /></div><div className="chat-actions"><div className={`sla-clock ${selectedSla.risk}`}><span>状态</span><strong>{selectedSla.strong}</strong><small>{selectedSla.small}</small></div>{selected.status === 'human' && canReplyTo(selected, me) && <button type="button" className="ai-takeover-button" onClick={handToAi} title="将当前会话转交机构配置的AI模型"><Icon name="spark" size={14} />AI 接管</button>}{selected.status === 'ai_handling' && <button type="button" className="ai-takeover-button" onClick={reclaimFromAi}><Icon name="headset" size={14} />人工接回</button>}<button type="button" className="ai-takeover-button success" onClick={inviteEvaluation} disabled={selected.status !== 'human' || !canReplyTo(selected, me)} title="问题处理完成后邀请客户评价"><Icon name="check" size={14} />问题已解决</button><button className="secondary-button" onClick={releaseSelected} disabled={selected.status !== 'human' || !canReplyTo(selected, me)}>退回队列</button><button className="danger-button" onClick={endConversation} disabled={['ai_handling','ended','evaluated'].includes(selected.status)}>结束会话</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div></div>
             {selected.status === 'queued' && <HandoffBanner selected={selected} onTakeOver={takeOver} />}
             {selected.status === 'ai_handling' && <div className="ended-banner"><Icon name="spark" size={16} /> AI 正在自动回答客户问题 · 客服可实时查看并随时人工接回</div>}
             {selected.status === 'ended' && <div className="ended-banner"><Icon name="check" size={16} /> 会话已结束 · {canReplyTo(selected, me) ? '你（原接待客服）可继续补充消息，状态与计时保持不变' : `仅原接待客服 ${selected.assignee || ''} 可继续回复`}</div>}
@@ -419,6 +421,11 @@ function shortStamp(iso) {
 }
 
 // 列表与顶部时钟的状态展示：有截止时间的会话显示真实倒计时，其余按状态显示文案（不再统一显示横杠）
+// 真实后端会话号为 UUID，头部只展示前 8 位，完整编号通过悬浮提示查看
+function shortConversationId(id) {
+  return typeof id === 'string' && id.length > 14 ? `${id.slice(0, 8)}…` : id
+}
+
 function slaViewOf(item, slaLeft) {
   const left = slaLeft[item.id]
   if ((item.status === 'queued' || item.status === 'human') && typeof left === 'number') {
@@ -428,6 +435,7 @@ function slaViewOf(item, slaLeft) {
   if (item.status === 'human') return { risk: 'safe', strong: '等待回复', small: item.statusText || '处理中' }
   if (item.status === 'evaluated') return { risk: 'safe', strong: '已评价', small: shortStamp(item.endedAt) }
   if (item.status === 'ended') return { risk: 'safe', strong: '已结束', small: shortStamp(item.endedAt) }
+  if (item.status === 'ai_handling') return { risk: 'ai', strong: 'AI 接待', small: '随时人工接回' }
   return { risk: 'safe', strong: '等待回复', small: item.statusText || '' }
 }
 

@@ -19,7 +19,7 @@ export const systemLogs = [
 
 export const operationLogs = [
   { id: 'OP-50812', time: '2026-08-27 14:02', level: 'info', scope: '知识库', event: '发布知识文档《退款到账规则 v3.3》', actor: '王敏 · 机构管理员', traceId: 'op-9d31aa', detail: '变更内容：更新预售订单退款时限说明；发布前已完成敏感词与隐私合规检查。' },
-  { id: 'OP-50807', time: '2026-08-27 11:48', level: 'info', scope: '客服团队', event: '审核通过并激活新客服账号 lina@xinghe.demo', actor: '王敏 · 机构管理员', traceId: 'op-88cc54', detail: '入职申请经平台端与机构端两级审核通过，账号状态置为 active 并加入售后支持组。' },
+  { id: 'OP-50807', time: '2026-08-27 11:48', level: 'info', scope: '客服团队', event: '审核通过并激活新客服账号 lina@xinghe.demo', actor: '王敏 · 机构管理员', traceId: 'op-88cc54', detail: '入职申请经机构管理员审核通过，账号状态置为 active 并加入售后支持组。' },
   { id: 'OP-50801', time: '2026-08-27 10:33', level: 'info', scope: '报表中心', event: '导出本月会话运营日报（XLSX）', actor: '张宁 · 客服主管', traceId: 'op-72b0e9', detail: '包含会话量、首响达标率与满意度分布三类指标；导出文件带水印并受下载权限保护。' },
   { id: 'OP-50795', time: '2026-08-27 09:57', level: 'warning', scope: '账号安全', event: '登录失败 3 次后被临时锁定 10 分钟', actor: '未知 · IP 203.0.113.87', traceId: 'op-61de73', detail: '目标账号 chenzhe@xinghe.demo 密码连续输错触发防爆破策略；来源 IP 此前无登录历史，建议保持关注。' },
   { id: 'OP-50789', time: '2026-08-26 17:21', level: 'info', scope: '客户中心', event: '为客户 CUST-016 打上「高价值」标签', actor: '李楠 · 客服专员', traceId: 'op-55fa30', detail: '依据为其开通专属技术支持通道的处理记录；该标签将影响后续会话的分配权重。' },

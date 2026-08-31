@@ -198,7 +198,15 @@ export async function loginWithDemoFallback(email, password, request = apiLogin)
       permissions: [],
     }
   } catch (error) {
-    if (error.code !== 'SERVICE_UNAVAILABLE') throw error
+    if (error.code !== 'SERVICE_UNAVAILABLE') {
+      // 本地注册审核激活的账号不在后端用户表里：后端返回凭据无效（401）时用本地账号库兜底；
+      // 账号停用等其他明确拒绝不兜底，避免绕过平台的管理动作
+      if (error.code === 'AUTH_REJECTED' && error.message === '账号或密码错误') {
+        const demo = authenticateDemo(email, password)
+        if (demo.ok) return demo.session
+      }
+      throw error
+    }
     const demo = authenticateDemo(email, password)
     if (demo.ok) return demo.session
     throw error
