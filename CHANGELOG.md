@@ -2,6 +2,25 @@
 
 本文件使用**中文**记录每个版本的任务产出、功能新增与修复内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 惯例。
 
+## [v0.8.0] - 2026-09-02
+
+### ✨ 新增：聊天多媒体交互（语音 / 图片 / 文件）+ 客服看板 API 与轻量 RAG 实施文档
+
+本次迭代将客户窗口与客服工作台的文本聊天升级为**完整多媒体消息**：语音录制（浏览器端转码 WAV）、图片 / 文件上传（真实进度、前后端双重校验）、附件与转写状态实时事件；同时新增坐席作用域客服看板 API 与 RAG 实施文档。
+
+### 📦 任务产出
+
+- **多媒体校验规则（`mediaPolicy.js`）**：图片 ≤10MB×9、文件 ≤50MB×5、语音 ≤20MB×1（最长 5 分钟 / 最短 1 秒），与后端 attachments 模块规则保持一致，前端即时提示、后端二次校验
+- **语音录制与转码（`VoiceRecorder.jsx` + `wavEncoder.js`）**：录制状态机 `idle → recording → preview`，覆盖权限拒绝 / 不支持录音 / 时长边界 / 切后台安全停止；MediaRecorder 产出的 webm/opus 解码后**重采样为 16kHz / 16bit / 单声道 WAV**（讯飞语音听写格式），解码失败回退原始音频
+- **多媒体上传编排（`useMediaUploader.js` + `uploadClient.js`）**：校验 → init → XHR 直传（真实进度）→ complete → 发送，状态机 `selected → initializing → uploading → confirming → sending → sent / failed`；`sendMessage` 由调用方注入（客户 Widget 传访客 SDK、工作台传坐席方法，避免串登录态），失败保留原始文件供重试
+- **多媒体消息渲染（`MessageContent.jsx`）**：按 `messageType` 渲染图片 / 文件 / 语音 / 文本；附件经鉴权接口换取 Blob URL（组件卸载自动释放防泄漏），语音消息可点击触发转写
+- **会话 API 扩展（`conversationApi.js`）**：新增 `initAttachment` / `completeAttachment` / `fetchAttachmentBlobUrl`；消息归一化支持 `messageType`、`attachment`、`transcription` 结构；实时层新增 `attachment.updated` / `transcription.updated` 事件（共 12 类）
+- **访客会话恢复（`chatClient.js`）**：按「租户 + 渠道」记住当前会话，刷新页面自动恢复；优先恢复仍在服务中的会话（queued / human / ai_handling）
+- **客服看板 API（`workbenchApi.js`）**：坐席作用域总览（我的负载 / 团队负载 / 售前售后分流队列 / 满意度），与机构级 `dashboardApi` 职责分离；`workbenchData.js` 新增后端会话 → 看板视图形状映射（渠道 / 状态 / 优先级中文标签、相对时间、稳定头像色）
+- **工程化**：`vite.config.js` 新增 `/socket.io` WebSocket 代理（实时会话与 REST 同源）；`api.js` 导出 `API_BASE` / `readAccessToken`；`index.html` 增加字体预连接；`.gitignore` 排除 `.impeccable/` 工具产物与 `vite-dev.log`
+- **文档产出**：`LIGHTWEIGHT_RAG_IMPLEMENTATION_GUIDE.md`（MySQL 全文索引 + DeepSeek 云端 API 的轻量 RAG，不部署向量库）+ `RAG_IMPLEMENTATION_GUIDE.md`（知识规模扩大后的向量 RAG 升级方案）、`DESIGN.md`（客户窗口视觉设计规范）、`PRODUCT.md`（产品说明）
+- **测试**：新增 `mediaPolicy.test.js`（多媒体校验）与 `workbenchApi.test.js`（看板汇总折叠），扩展 chatClient（会话恢复）、conversationApi（附件 / 转写结构）、workbenchData（相对时间）用例，共 **105 个用例全绿**
+
 ## [v0.7.0] - 2026-08-31
 
 ### ✨ 新增：客服审核单级化 + 日志 API 化与系统诊断

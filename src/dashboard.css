@@ -686,3 +686,15 @@
   .db-queue-row .db-sla-chip, .db-queue-row .db-wait { display: none; }
   .db-actions { flex-direction: column; }
 }
+
+/* 数据来源提示：客服看板优先读 /workbench/overview，后端不可用时退回演示种子 */
+.db-source-hint {
+  margin-bottom: 12px;
+  padding: 7px 11px;
+  border: 1px solid #dce5f6;
+  border-radius: 6px;
+  background: #f3f7ff;
+  color: #55688f;
+  font-size: 11px;
+  line-height: 1.5;
+}

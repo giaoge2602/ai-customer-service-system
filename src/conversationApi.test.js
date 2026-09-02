@@ -5,6 +5,8 @@ import {
   createOrResumeConversation,
   listAllConversations,
   listConversations,
+  normalizeMessage,
+  recognizeTranscription,
   sendConversationMessage,
 } from './conversationApi.js'
 
@@ -54,6 +56,55 @@ test('create and message calls keep the supplied clientMessageId', async () => {
     JSON.parse(request().options.body).clientMessageId,
     '22222222-2222-4222-8222-222222222222',
   )
+})
+
+test('normalizeMessage keeps multimedia metadata when called more than once', () => {
+  const raw = {
+    id: 'M-1',
+    senderType: 'customer',
+    messageType: 'file',
+    attachmentId: 'ATT-1',
+    attachment: {
+      id: 'ATT-1',
+      kind: 'file',
+      status: 'ready',
+      originalName: '报价单.pdf',
+      sizeBytes: 2048,
+      mimeType: 'application/pdf',
+    },
+  }
+  const once = normalizeMessage(raw)
+  const twice = normalizeMessage(once)
+
+  assert.equal(twice.attachmentId, 'ATT-1')
+  assert.equal(twice.attachment.fileName, '报价单.pdf')
+  assert.equal(twice.attachment.sizeBytes, 2048)
+  assert.equal(twice.attachment.mimeType, 'application/pdf')
+})
+
+test('sendConversationMessage forwards multimedia type and attachment id', async () => {
+  const request = mockApi({
+    id: 'M-2',
+    senderType: 'customer',
+    messageType: 'image',
+    attachmentId: 'ATT-2',
+  })
+  await sendConversationMessage('C-1', {
+    clientMessageId: '33333333-3333-4333-8333-333333333333',
+    messageType: 'image',
+    attachmentId: 'ATT-2',
+  })
+
+  const body = JSON.parse(request().options.body)
+  assert.equal(body.messageType, 'image')
+  assert.equal(body.attachmentId, 'ATT-2')
+})
+
+test('recognizeTranscription submits the message to the on-demand recognition endpoint', async () => {
+  const request = mockApi({ status: 'pending' })
+  await recognizeTranscription('MSG-AUDIO-1')
+  assert.equal(request().url, '/api/v1/messages/MSG-AUDIO-1/transcription/recognize')
+  assert.equal(request().options.method, 'POST')
 })
 
 test('listAllConversations loads every page required by the total count', async () => {

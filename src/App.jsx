@@ -9,7 +9,10 @@ import { canAccessPath, resolveHome, resolveLoginPath, resolveLogoutPath } from 
 import { getWorkArea } from './prototype'
 import { readAccessToken } from './api'
 import { createConversationRealtime } from './conversationRealtime'
-import { claimConversation, endConversation as endConversationRequest, getConversation, listAllConversations, listConversations, markConversationRead, releaseConversation, requestConversationEvaluation, sendConversationMessage } from './conversationApi'
+import { claimConversation, endConversation as endConversationRequest, getConversation, listAllConversations, listConversations, markConversationRead, recognizeTranscription, releaseConversation, requestConversationEvaluation, sendConversationMessage } from './conversationApi'
+import { MessageContent } from './chat/MessageContent.jsx'
+import VoiceRecorder from './chat/VoiceRecorder.jsx'
+import { useMediaUploader } from './chat/useMediaUploader.js'
 import { reclaimConversationFromAi, takeoverConversationByAi } from './aiApi'
 import { canReplyTo, formatSlaSeconds, slaRiskByLeft, sortConversationsByStage, visibleConversations } from './workbenchData'
 import EmptyState from './EmptyState'
@@ -18,6 +21,7 @@ const Icon = ({ name, size = 18, stroke = 1.8 }) => {
   const paths = {
     grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
     chat: <><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.8 8.8 0 0 1-3.4-.7L4 20l1.7-3.4A7.3 7.3 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z" /><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" strokeLinecap="round" /></>,
+    image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9" r="1.5" /><path d="m5 17 4.5-4.5 3 3 2-2 4.5 4.5" /></>,
     book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z" /><path d="M4 5.5v16M8 7h8M8 11h8" /></>,
     chart: <><path d="M4 19V5M4 19h17" /><path d="m7 15 3-4 3 2 5-7" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.7 1.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.1h-2.4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L8 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H6v-2.4h.8a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L8 8.6l1.7-1.7.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.1h2.4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.7 1.7-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1V14H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
@@ -78,6 +82,8 @@ function App() {
   const visitorTenantId = searchParams.get('tenantId')
   const visitorEnabled = searchParams.get('visitor') === '1' && !!visitorTenantId
   const visitorChannel = searchParams.get('channel') || 'web'
+  // 访客昵称：/visitor/chat?tenantId=...&channel=h5&name=林晓 —— 客服侧会看到名字而不是「访客」
+  const visitorName = searchParams.get('name') || undefined
   const authenticate = (nextSession) => {
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
     setSession(nextSession)
@@ -106,7 +112,7 @@ function App() {
     <Route path="/admin/register/platform-admin" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="admin-register-platform" portal="admin" mode="register" registrationTarget="platform" onAuthenticated={authenticate} />} />
     <Route path="/admin/forgot-password" element={session ? <Navigate to={resolveHome(session.role)} replace /> : <AuthPage key="admin-recovery" portal="admin" mode="recovery" onAuthenticated={authenticate} />} />
     <Route path="/customer/chat" element={<ProtectedRoute session={session}><CustomerChat session={session} onLogout={logout} /></ProtectedRoute>} />
-    <Route path="/visitor/chat" element={visitorTenantId ? <div style={{ minHeight: '100vh', background: '#f6f8fb' }}><CustomerChatWidget tenantId={visitorTenantId} channel={visitorChannel} autoOpen /></div> : <Navigate to="/service/login" replace />} />
+    <Route path="/visitor/chat" element={visitorTenantId ? <div style={{ minHeight: '100vh', background: '#f6f8fb' }}><CustomerChatWidget tenantId={visitorTenantId} channel={visitorChannel} visitorName={visitorName} autoOpen /></div> : <Navigate to="/service/login" replace />} />
     <Route path="/workbench" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
     <Route path="/workbench/service-logs" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
     <Route path="/workbench/:conversationId" element={<ProtectedRoute session={session}><WorkbenchRoute session={session} onLogout={logout} /></ProtectedRoute>} />
@@ -116,7 +122,7 @@ function App() {
     <Route path="/organization/:module" element={<ProtectedRoute session={session}><AdminConsole mode="organization" session={session} onLogout={logout} /></ProtectedRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
-    {visitorEnabled && !session && <CustomerChatWidget tenantId={visitorTenantId} channel={visitorChannel} />}
+    {visitorEnabled && !session && <CustomerChatWidget tenantId={visitorTenantId} channel={visitorChannel} visitorName={visitorName} />}
   </>
 }
 
@@ -146,6 +152,8 @@ function Workbench({ routeId, navigate, session, onLogout }) {
   const [rightOpen, setRightOpen] = useState(true)
   const [mobileListOpen, setMobileListOpen] = useState(false)
   const mobileListButtonRef = useRef(null)
+  const messageScrollRef = useRef(null)
+  const followLatestMessageRef = useRef(true)
 
   const adaptConversation = (item) => {
     const nowMs = Date.now()
@@ -162,7 +170,12 @@ function Workbench({ routeId, navigate, session, onLogout }) {
       id: message.id,
       sequence: message.sequence,
       from: message.senderType,
+      content: message.content,
       text: message.content,
+      messageType: message.messageType || 'text',
+      attachmentId: message.attachmentId || message.attachment?.id || null,
+      attachment: message.attachment || null,
+      transcription: message.transcription || null,
       time: new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
       createdAt: message.createdAt,
     }))
@@ -185,7 +198,9 @@ function Workbench({ routeId, navigate, session, onLogout }) {
           ? (replySeconds != null ? (replySeconds > 0 ? '剩余答复时间' : '已超时') : '等待回复')
           : item.status === 'ai_handling' ? 'AI 自动回复' : item.status === 'evaluated' ? '已评价' : '已结束',
       slaRisk: timerSeconds != null ? slaRiskByLeft(timerSeconds) : 'safe',
-      preview: lastMessage?.text || '暂无消息',
+      preview: lastMessage?.messageType && lastMessage.messageType !== 'text'
+        ? { image: '[图片]', file: '[文件]', audio: '[语音]' }[lastMessage.messageType] || '[多媒体消息]'
+        : lastMessage?.text || '暂无消息',
       tone: 'blue',
       assignee: item.agent?.name || null,
       agentId: item.agentId || null,
@@ -208,7 +223,12 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     try {
       const result = await listAllConversations({ pageSize: 100 })
       const adapted = result.items.map(adaptConversation)
-      setConversations(adapted)
+      setConversations((current) => {
+        const currentById = new Map(current.map((item) => [item.id, item]))
+        return adapted.map((item) => item.messages.length
+          ? item
+          : { ...item, messages: currentById.get(item.id)?.messages || [] })
+      })
       const nextId = adapted.some((item) => item.id === preferredId) ? preferredId : adapted[0]?.id
       if (nextId) {
         setSelectedId(nextId)
@@ -228,10 +248,28 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     if (!token) return undefined
     const realtime = createConversationRealtime({ token, onReconnect: () => loadConversations() })
     const refresh = () => loadConversations()
-    const unsubscribers = ['conversation.created', 'conversation.claimed', 'conversation.released', 'conversation.assigned', 'conversation.ended', 'conversation.ai_taken_over', 'conversation.ai_reclaimed', 'conversation.ai_handoff', 'message.created', 'evaluation.scheduled'].map((name) => realtime.subscribe(name, refresh))
+    const unsubscribers = ['conversation.created', 'conversation.claimed', 'conversation.released', 'conversation.assigned', 'conversation.ended', 'conversation.reopened', 'conversation.ai_taken_over', 'conversation.ai_reclaimed', 'conversation.ai_handoff', 'message.created', 'evaluation.scheduled', 'attachment.updated', 'transcription.updated'].map((name) => realtime.subscribe(name, refresh))
     if (selectedId) realtime.join(selectedId)
     return () => { unsubscribers.forEach((unsubscribe) => unsubscribe()); realtime.close() }
   }, [selectedId])
+
+  // 多媒体发送：图片 / 文件 / 语音统一走附件安全链路
+  const selectedConvId = selectedId || ''
+  const media = useMediaUploader({
+    getToken: () => readAccessToken(),
+    sendMessage: (conversationId, input) => sendConversationMessage(conversationId, input),
+    onNotify: (message) => notify(message),
+    onFinished: () => { if (selectedConvId) loadConversations(selectedConvId) },
+  })
+  const sendMedia = async (file, kind, durationMs) => {
+    if (!selectedConvId) { notify('请先选择会话'); return }
+    followLatestMessageRef.current = true
+    await media.send({ conversationId: selectedConvId, file, kind, mimeType: file.type, durationMs })
+  }
+  const recognizeVoice = async (messageId) => {
+    await recognizeTranscription(messageId)
+    await loadConversations(selectedConvId)
+  }
 
   useEffect(() => {
     if (!mobileListOpen) return undefined
@@ -266,6 +304,18 @@ function Workbench({ routeId, navigate, session, onLogout }) {
   }, [conversations, slaTick])
 
   const selected = conversations.find((item) => item.id === selectedId) || conversations[0]
+  const selectedMessageCount = selected?.messages.length || 0
+  useEffect(() => {
+    followLatestMessageRef.current = true
+  }, [selectedId])
+  useEffect(() => {
+    if (!followLatestMessageRef.current) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const scroll = messageScrollRef.current
+      if (scroll) scroll.scrollTop = scroll.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [selectedId, selectedMessageCount])
   // 「全部状态」= 机构内全部会话（跨坐席可见）；列表分层排序：
   // 处理中（剩余答复时间升序）→ 待接管 → 已结束/已评价（最近结束倒序）
   const filtered = useMemo(() => {
@@ -298,13 +348,18 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     setAiSuggestion('')
     setNote('')
     setConversations((items) => items.map((item) => item.id === id ? { ...item, unread: 0 } : item))
-    navigate(`/workbench/${id}`)
+    // 点进会话时保留 URL 上的筛选参数，侧边列表的筛选状态不丢失、刷新后也保持
+    navigate({ pathname: `/workbench/${id}`, search: params.toString() })
     setMobileListOpen(false)
     try {
       const detail = adaptConversation(await getConversation(id))
       setConversations((items) => items.map((item) => item.id === id ? detail : item))
       const latest = detail.messages.at(-1)?.sequence
-      if (latest !== undefined) await markConversationRead(id, latest)
+      if (latest !== undefined) {
+        await markConversationRead(id, latest)
+        // 已读接口会把后端未读数清零，本地列表同步归零，红点立即消失
+        setConversations((items) => items.map((item) => item.id === id ? { ...item, unread: 0 } : item))
+      }
     } catch (requestError) { notify(requestError.message) }
   }
 
@@ -329,6 +384,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
   const sendMessage = async () => {
     if (!draft.trim() || !canReplyTo(selected, me)) return
     const wasEnded = selected.status === 'ended'
+    followLatestMessageRef.current = true
     try { await sendConversationMessage(selected.id, { content: draft.trim(), clientMessageId: crypto.randomUUID() }); setDraft(''); await loadConversations(selected.id); notify(wasEnded ? '已补充发送 · 会话保持「已结束」，计时不会重启' : '消息已发送') } catch (requestError) { notify(requestError.message) }
   }
 
@@ -357,7 +413,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
     try { await requestConversationEvaluation(selected.id); await loadConversations(selected.id); notify('将在 2 分钟后向客户展示评价') } catch (requestError) { notify(requestError.message) }
   }
 
-  if (loadingConversations || !selected) return <AgentWorkspaceShell active="conversations" session={session} onLogout={onLogout}><main className="workbench-main"><EmptyState icon="chat" title={loadingConversations ? '正在加载真实会话' : '暂无可处理会话'} desc="客户发起咨询后，会话会实时出现在这里" /></main></AgentWorkspaceShell>
+  if (loadingConversations || !selected) return <AgentWorkspaceShell active="conversations" session={session} onLogout={onLogout} conversationsUnread={conversations.reduce((sum, item) => sum + (item.unread || 0), 0)}><main className="workbench-main"><EmptyState icon="chat" title={loadingConversations ? '正在加载真实会话' : '暂无可处理会话'} desc="客户发起咨询后，会话会实时出现在这里" /></main></AgentWorkspaceShell>
 
   // 顶部状态时钟与输入框权限：处理中按剩余答复时间倒计时，无计时任务显示状态文案
   const selectedSla = slaViewOf(selected, slaLeft)
@@ -378,7 +434,7 @@ function Workbench({ routeId, navigate, session, onLogout }) {
 
   return (
     <>
-      <AgentWorkspaceShell active="conversations" session={session} onLogout={onLogout}>
+      <AgentWorkspaceShell active="conversations" session={session} onLogout={onLogout} conversationsUnread={conversations.reduce((sum, item) => sum + (item.unread || 0), 0)}>
         <main className="workbench-main">
           <section className="conversation-column" aria-label="会话列表">
             <div className="column-header"><div><h1>会话</h1><p>{filtered.length} 个会话 · <em>{filtered.filter((c) => c.status === 'queued').length}</em> 个待接管</p></div><button type="button" className="primary-button compact claim-next" onClick={claimNext} disabled={!filtered.some((c) => c.status === 'queued')} title="按 SLA 优先级自动接入下一条待处理会话"><Icon name="arrow" size={14} />一键接下一</button><button className="icon-button subtle" aria-label="更多会话操作"><Icon name="more" /></button></div>
@@ -397,8 +453,8 @@ function Workbench({ routeId, navigate, session, onLogout }) {
             {selected.status === 'ai_handling' && <div className="ended-banner"><Icon name="spark" size={16} /> AI 正在自动回答客户问题 · 客服可实时查看并随时人工接回</div>}
             {selected.status === 'ended' && <div className="ended-banner"><Icon name="check" size={16} /> 会话已结束 · {canReplyTo(selected, me) ? '你（原接待客服）可继续补充消息，状态与计时保持不变' : `仅原接待客服 ${selected.assignee || ''} 可继续回复`}</div>}
             {selected.status === 'evaluated' && <div className="ended-banner"><Icon name="check" size={16} /> 客户已提交{selected.customer.satisfaction === '—' ? '' : ` ${selected.customer.satisfaction} 星`}评价 · 会话已只读</div>}
-            <div className="message-scroll"><div className="date-divider"><span>今天 · 2026年8月19日</span></div>{selected.messages.map((message) => <MessageItem key={message.id} message={message} endedAt={selected.endedAt} />)}{aiSuggestion && <AiSuggestionCard suggestion={aiSuggestion} onAccept={acceptSuggestion} onDismiss={() => setAiSuggestion('')} />}</div>
-            <div className="composer-wrap"><div className="composer-toolbar"><div className="tool-buttons"><button onClick={() => setAiSuggestion('建议先确认订单 A20260819001 的当前退款状态，并向客户说明预计到账时间。')} className={`ai-trigger-tool ${aiSuggestion ? 'active' : ''}`} disabled={selected.status !== 'human'} title="AI 基于当前会话与知识库生成回复建议"><Icon name="spark" size={16} />AI 辅助</button><button onClick={() => setShowQuick(!showQuick)} className={showQuick ? 'selected' : ''}><Icon name="chat" size={16} />快捷回复</button><button onClick={() => notify('附件功能将在接入文件服务后启用')}><Icon name="paperclip" size={16} />附件</button><button onClick={() => notify('语音录制已开始（演示）')}><Icon name="phone" size={16} />语音</button></div><span className="composer-hint">Enter 发送 · Shift + Enter 换行</span></div>{showQuick && <div className="quick-replies">{quickReplies.map((reply) => <button key={reply} onClick={() => addQuickReply(reply)}>{reply}<Icon name="arrow" size={14} /></button>)}</div>}<div className={`composer ${replyAllowed ? '' : 'disabled'}`}><textarea aria-label="回复消息" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} disabled={!replyAllowed} placeholder={composerPlaceholder} /><button className="send-button" onClick={sendMessage} disabled={!replyAllowed || !draft.trim()} aria-label="发送消息"><Icon name="send" size={18} /></button></div></div>
+            <div ref={messageScrollRef} className="message-scroll" onScroll={(event) => { const scroll = event.currentTarget; followLatestMessageRef.current = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 80 }}><div className="date-divider"><span>今天 · 2026年8月19日</span></div>{selected.messages.map((message) => <MessageItem key={message.id} message={message} endedAt={selected.endedAt} onRecognizeVoice={recognizeVoice} />)}{aiSuggestion && <AiSuggestionCard suggestion={aiSuggestion} onAccept={acceptSuggestion} onDismiss={() => setAiSuggestion('')} />}</div>
+            <div className="composer-wrap"><div className="composer-toolbar"><div className="tool-buttons"><button onClick={() => setAiSuggestion('建议先确认订单 A20260819001 的当前退款状态，并向客户说明预计到账时间。')} className={`ai-trigger-tool ${aiSuggestion ? 'active' : ''}`} disabled={selected.status !== 'human'} title="AI 基于当前会话与知识库生成回复建议"><Icon name="spark" size={16} />AI 辅助</button><button onClick={() => setShowQuick(!showQuick)} className={showQuick ? 'selected' : ''}><Icon name="chat" size={16} />快捷回复</button><label className={!replyAllowed || media.uploading ? 'uploading' : ''} title="发送图片" style={{ cursor: 'pointer' }}><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden disabled={!replyAllowed || media.uploading} onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ''; void (async () => { for (const file of files) await sendMedia(file, 'image') })() }} /><Icon name="image" size={16} />图片</label><label className={!replyAllowed || media.uploading ? 'uploading' : ''} title="发送文件" style={{ cursor: 'pointer' }}><input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" hidden disabled={!replyAllowed || media.uploading} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) sendMedia(file, 'file') }} /><Icon name="paperclip" size={16} />文件</label></div><span className="composer-hint">Enter 发送 · Shift + Enter 换行</span></div>{showQuick && <div className="quick-replies">{quickReplies.map((reply) => <button key={reply} onClick={() => addQuickReply(reply)}>{reply}<Icon name="arrow" size={14} /></button>)}</div>}{(media.uploading || media.phase) && <div className="mm-wb-progress" role="status">{media.uploading ? `${media.phase || '正在处理…'} (${media.progress}%)` : ''}</div>}{!media.uploading && <div className="mm-wb-voice"><VoiceRecorder disabled={!replyAllowed} sendLabel="发送语音" onSend={({ blob, mimeType, durationMs }) => sendMedia(new File([blob], `语音-${Date.now()}.wav`, { type: mimeType }), 'audio', durationMs)} /></div>}<div className={`composer ${replyAllowed ? '' : 'disabled'}`}><textarea aria-label="回复消息" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} disabled={!replyAllowed} placeholder={composerPlaceholder} /><button className="send-button" onClick={sendMessage} disabled={!replyAllowed || !draft.trim()} aria-label="发送消息"><Icon name="send" size={18} /></button></div></div>
           </section>
 
           <aside className={`context-column ${rightOpen ? '' : 'collapsed'}`} aria-label="客户与接管上下文"><div className="context-header"><div><h2>客户信息</h2><span>客户与会话上下文</span></div><button className="icon-button subtle" onClick={() => setRightOpen(!rightOpen)} aria-label={rightOpen ? '收起客户信息' : '展开客户信息'}><Icon name="chevron" size={16} /></button></div>{rightOpen && <div className="context-scroll"><CustomerCard selected={selected} /><PanelSection title="AI 接管摘要" icon="spark" open={selected.status !== 'ended'}><div className="summary-card"><div className="summary-label">客户当前诉求</div><p>{selected.handoff?.summary || '当前会话由 AI 正常接待，暂未触发人工接管。'}</p>{selected.handoff && <><div className="summary-divider" /><div className="summary-label">建议下一步</div><p>{selected.handoff.next}</p><div className="confidence-row"><span>AI 置信度</span><strong className={selected.handoff.confidence < 60 ? 'low' : ''}>{selected.handoff.confidence}%</strong></div></>}</div></PanelSection><PanelSection title="转人工原因" icon="headset" open={Boolean(selected.handoff)}>{selected.handoff ? <div className="reason-box"><span className="reason-icon"><Icon name="arrow" size={14} /></span><div><strong>{selected.handoff.reason}</strong><span>触发于 {selected.time === '刚刚' ? '刚刚' : '今天 14:28'}</span></div></div> : <div className="muted-empty">尚未触发人工接管</div>}</PanelSection><PanelSection title="知识引用" icon="book" open={Boolean(selected.handoff?.citations)}>{selected.handoff?.citations?.map((citation) => <div className="citation" key={citation}><Icon name="book" size={14} /><span>{citation}</span><Icon name="chevron" size={13} /></div>) || <div className="muted-empty">暂无引用</div>}</PanelSection><PanelSection title="备注与工单" icon="ticket" open><div className="note-area"><label htmlFor="agent-note">客服备注</label><textarea id="agent-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="记录本次服务要点..." /><button onClick={() => notify(note.trim() ? '备注已保存' : '请输入备注内容')}>保存备注</button></div><button className="create-ticket" onClick={() => setShowTicket(true)}><Icon name="plus" size={15} />创建关联工单 <Icon name="chevron" size={14} /></button></PanelSection></div>}</aside>
@@ -439,10 +495,10 @@ function slaViewOf(item, slaLeft) {
   return { risk: 'safe', strong: '等待回复', small: item.statusText || '' }
 }
 
-function ConversationItem({ item, selected, onClick, slaView }) { return <button className={`conversation-item ${selected ? 'selected' : ''}`} onClick={onClick} role="listitem"><div className={`customer-avatar small ${item.tone}`}>{item.initials}</div><div className="conversation-content"><div className="conversation-top"><strong>{item.name}</strong><span>{item.time}</span></div><div className="conversation-preview">{item.preview}</div><div className="conversation-meta"><span className="channel-pill">{item.channel}</span><span className={`status-mini ${item.status}`}>{item.statusText}</span>{item.priority !== 'normal' && <span className={`priority-mini ${item.priority}`}>{item.priorityText}</span>}{item.unread > 0 && <b className="unread-count">{item.unread}</b>}</div></div><div className={`sla-mini ${slaView?.risk || item.slaRisk}`}><strong>{slaView ? slaView.strong : item.sla}</strong><span>{slaView ? slaView.small : item.slaLabel}</span></div></button> }
+function ConversationItem({ item, selected, onClick, slaView }) { return <button className={`conversation-item ${selected ? 'selected' : ''}`} onClick={onClick} role="listitem"><span className="avatar-box"><span className={`customer-avatar small ${item.tone}`}>{item.initials}</span>{item.unread > 0 && <b className="unread-badge">{item.unread > 99 ? '99+' : item.unread}</b>}</span><div className="conversation-content"><div className="conversation-top"><strong>{item.name}</strong><span>{item.time}</span></div><div className="conversation-preview">{item.preview}</div><div className="conversation-meta"><span className="channel-pill">{item.channel}</span><span className={`status-mini ${item.status}`}>{item.statusText}</span>{item.priority !== 'normal' && <span className={`priority-mini ${item.priority}`}>{item.priorityText}</span>}</div></div><div className={`sla-mini ${slaView?.risk || item.slaRisk}`}><strong>{slaView ? slaView.strong : item.sla}</strong><span>{slaView ? slaView.small : item.slaLabel}</span></div></button> }
 function StatusBadge({ item }) { return <span className={`status-badge ${item.status}`}><i />{item.statusText}</span> }
 function HandoffBanner({ selected, onTakeOver }) { return <div className="handoff-banner"><div className="handoff-icon"><Icon name="headset" size={18} /></div><div className="handoff-copy"><strong>AI 已请求人工协助</strong><span>{selected.handoff?.reason} · 当前置信度 <b>{selected.handoff?.confidence}%</b></span></div><button className="text-button">查看接管摘要</button><button className="primary-button compact" onClick={onTakeOver}>立即接管 <Icon name="arrow" size={14} /></button></div> }
-function MessageItem({ message, endedAt }) { const label = message.from === 'customer' ? '客户' : message.from === 'ai' ? 'AI 助手' : message.from === 'agent' ? '李楠 · 客服' : '系统'; const afterEnd = endedAt && message.createdAt && new Date(message.createdAt).getTime() >= new Date(endedAt).getTime() && message.from !== 'system'; return <div className={`message-row ${message.from}`}><div className={`message-avatar ${message.from}`}>{message.from === 'ai' ? <Icon name="spark" size={14} /> : message.from === 'agent' ? '李' : message.from === 'customer' ? '林' : <Icon name="check" size={13} />}</div><div className="message-body"><div className="message-author"><strong>{label}</strong><span>{message.time}</span>{message.confidence && <em className={message.confidence < 60 ? 'low' : ''}>置信度 {message.confidence}%</em>}{afterEnd && <em className="after-end-tag">结束后消息</em>}</div><div className="message-bubble">{message.text}</div>{message.citations && <div className="message-citation"><Icon name="book" size={13} />引用：{message.citations.join('、')} <Icon name="chevron" size={12} /></div>}</div></div> }
+function MessageItem({ message, endedAt, onRecognizeVoice }) { const label = message.from === 'customer' ? '客户' : message.from === 'ai' ? 'AI 助手' : message.from === 'agent' ? '李楠 · 客服' : '系统'; const afterEnd = endedAt && message.createdAt && new Date(message.createdAt).getTime() >= new Date(endedAt).getTime() && message.from !== 'system'; return <div className={`message-row ${message.from}`}><div className={`message-avatar ${message.from}`}>{message.from === 'ai' ? <Icon name="spark" size={14} /> : message.from === 'agent' ? '李' : message.from === 'customer' ? '林' : <Icon name="check" size={13} />}</div><div className="message-body"><div className="message-author"><strong>{label}</strong><span>{message.time}</span>{message.confidence && <em className={message.confidence < 60 ? 'low' : ''}>置信度 {message.confidence}%</em>}{afterEnd && <em className="after-end-tag">结束后消息</em>}</div><div className="message-bubble"><MessageContent message={message} tokenGetter={() => readAccessToken()} onRecognizeTranscription={onRecognizeVoice} canRecognizeTranscription /></div>{message.citations && <div className="message-citation"><Icon name="book" size={13} />引用：{message.citations.join('、')} <Icon name="chevron" size={12} /></div>}</div></div> }
 function AiSuggestionCard({ suggestion, onAccept, onDismiss }) { return <div className="ai-suggestion"><div className="suggestion-top"><div><span className="ai-label"><Icon name="spark" size={14} /> AI 建议回复</span><span className="suggestion-confidence">基于当前会话与知识库</span></div><button className="icon-button subtle" onClick={onDismiss} aria-label="关闭 AI 建议"><Icon name="close" size={15} /></button></div><p>{suggestion}</p><div className="suggestion-bottom"><span><Icon name="book" size={13} />已引用 2 条知识</span><button className="primary-button compact" onClick={onAccept}>采纳到草稿</button></div></div> }
 function CustomerCard({ selected }) { return <div className="customer-card"><div className="customer-card-top"><div className={`customer-avatar medium ${selected.tone}`}>{selected.initials}</div><div><h3>{selected.name}</h3><span className="customer-level">{selected.customer.level}</span></div><button className="icon-button subtle" aria-label="更多客户操作"><Icon name="more" /></button></div><div className="customer-fields"><div><span>来源渠道</span><strong>{selected.customer.source}</strong></div><div><span>手机号 <small>已脱敏</small></span><strong>{selected.customer.phone}</strong></div><div><span>最近咨询</span><strong>{selected.customer.lastSeen}</strong></div><div><span>满意度</span><strong>{selected.customer.satisfaction === '—' ? '暂无评价' : `${selected.customer.satisfaction} / 5.0`}</strong></div></div><div className="tag-list">{selected.customer.tags.map((tag) => <span key={tag}>{tag}</span>)}<button className="add-tag" aria-label="添加标签"><Icon name="plus" size={13} /></button></div><button className="profile-link">查看完整客户档案 <Icon name="arrow" size={14} /></button></div> }
 function PanelSection({ title, icon, open = false, children }) { return <details className="panel-section" open={open}><summary><span><Icon name={icon} size={15} />{title}</span><Icon name="down" size={14} /></summary><div className="panel-content">{children}</div></details> }

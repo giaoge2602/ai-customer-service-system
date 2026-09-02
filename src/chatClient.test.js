@@ -6,6 +6,9 @@ import {
   createChatClient,
   ensureGuestSession,
   obtainClientSessionId,
+  readGuestConversationId,
+  selectGuestConversationToRestore,
+  writeGuestConversationId,
 } from './chatClient.js'
 
 function fakeStorage() {
@@ -118,6 +121,28 @@ test('obtainClientSessionId is stable for the same storage', () => {
   assert.ok(first)
 })
 
+test('guest conversation ids persist independently for each tenant and channel', () => {
+  const storage = fakeStorage()
+  storage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ accessToken: 'tk', tenantId: 'TENANT-018' }))
+
+  writeGuestConversationId({ tenantId: 'TENANT-018', channel: 'h5', conversationId: 'CONV-H5' }, storage)
+  writeGuestConversationId({ tenantId: 'TENANT-018', channel: 'web', conversationId: 'CONV-WEB' }, storage)
+
+  assert.equal(readGuestConversationId({ tenantId: 'TENANT-018', channel: 'h5' }, storage), 'CONV-H5')
+  assert.equal(readGuestConversationId({ tenantId: 'TENANT-018', channel: 'web' }, storage), 'CONV-WEB')
+  assert.equal(readGuestConversationId({ tenantId: 'TENANT-OTHER', channel: 'h5' }, storage), null)
+  assert.equal(JSON.parse(storage.getItem(GUEST_STORAGE_KEY)).accessToken, 'tk')
+})
+
+test('conversation restore prefers every active status and otherwise keeps recent history', () => {
+  const ended = { id: 'ENDED', status: 'ended' }
+  const aiHandling = { id: 'AI', status: 'ai_handling' }
+
+  assert.equal(selectGuestConversationToRestore([ended, aiHandling]).id, 'AI')
+  assert.equal(selectGuestConversationToRestore([ended]).id, 'ENDED')
+  assert.equal(selectGuestConversationToRestore([]), null)
+})
+
 test('chat client rest injects bearer and passes the channel', async () => {
   let request
   const client = createChatClient({
@@ -135,6 +160,22 @@ test('chat client rest injects bearer and passes the channel', async () => {
   const body = JSON.parse(request.options.body)
   assert.equal(body.channel, 'h5')
   assert.equal(body.firstMessage, '你好')
+})
+
+test('guest chat client can request on-demand voice recognition', async () => {
+  let request
+  const client = createChatClient({
+    getToken: () => 'guest-token',
+    fetchImpl: async (url, options) => {
+      request = { url, options }
+      return { ok: true, json: async () => ({ data: { status: 'pending' } }) }
+    },
+  })
+  await client.rest.recognizeTranscription('MSG-AUDIO-1')
+
+  assert.equal(request.url, '/api/v1/messages/MSG-AUDIO-1/transcription/recognize')
+  assert.equal(request.options.method, 'POST')
+  assert.equal(request.options.headers.Authorization, 'Bearer guest-token')
 })
 
 test('openRealtime wires token and reconciles via REST on reconnect', async () => {

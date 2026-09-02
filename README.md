@@ -25,6 +25,7 @@
 
 ### 1. 客服工作台（/workbench）
 - **会话接待**：实时会话列表（状态 / 渠道 / SLA 风险多维筛选 + 关键词搜索，**筛选条件写入 URL 可分享/刷新不丢**）、AI 置信度与知识引用展示、人工接管、AI 建议回复、快捷回复、**SLA 实时倒计时**（`SlaCountdown`）、转接 / 结束 / 建工单、空状态兜底（`EmptyState`）
+- **多媒体消息**：输入区支持发送**图片（≤10MB×9）/ 文件（≤50MB×5）/ 语音**（≤20MB，最长 5 分钟）；`mediaPolicy` 前端即时校验 + `useMediaUploader` 上传状态机（init → 直传带进度 → complete → 发送），语音录制后浏览器端转码为 **16kHz 16bit 单声道 WAV**（`wavEncoder`，对接讯飞听写格式）；消息体按 `messageType` 渲染（`MessageContent`），附件经鉴权接口换取 Blob URL，语音消息可点击转写（`transcription` 状态实时事件）
 - **AI 接管 / 人工接回闭环**：处理中会话可一键「AI 接管」（仅当前接待客服可操作）转交机构配置的 AI 模型自动回复，AI 接待中可随时「人工接回」；会话状态 `ai_handling` 贯穿会话列表、状态徽章、SLA 时钟与实时事件（`conversation.ai_taken_over / ai_reclaimed / ai_handoff`），AI 回复期间停止人工超时计时，失败自动退回队列
 - **客服看板（/workbench/dashboard）**：团队工作负载、在线/排队/满意度指标、班次安排与交接提醒、**分流接待队列**（队列类型 + 优先级 + 客服分配联动）、**看板洞察指标**（机构/客服/渠道占比、AI 处理率、对比分析，`dashboardInsights`）
 - **服务工单（/workbench/tickets）**：工单指标卡一键联动筛选（全部 / 待处理 / 处理中 / 已解决）、解决率实时计算、关联会话跳转、状态流转
@@ -35,8 +36,9 @@
 
 ### 2. 客户服务入口（/customer/chat、/visitor/chat）
 - **登录客户聊天窗口**：客户登录后发起咨询，支持常见问题快捷提问
-- **免登录访客聊天（/visitor/chat）**：面向第三方小程序 / H5 / 网页的**客户客服窗口对接**——客户免注册、打开即聊；`chatClient` SDK 提供独立的访客会话（localStorage 独立 key，不覆盖坐席/管理员登录态）
-- **多端对话客户端 SDK**：`chatClient.js`（访客会话 + REST + Realtime 封装）、`conversationApi.js`（会话 REST：建/恢复、消息、DTO 归一化）、`conversationRealtime.js`（Socket.IO 实时：会话创建/接管/分配/结束、消息收发/已读、评价事件，去重 + 断线重连）
+- **免登录访客聊天（/visitor/chat）**：面向第三方小程序 / H5 / 网页的**客户客服窗口对接**——客户免注册、打开即聊；`chatClient` SDK 提供独立的访客会话（localStorage 独立 key，不覆盖坐席/管理员登录态），**按租户 + 渠道记住当前会话，刷新页面自动恢复**（`readGuestConversationId` / `selectGuestConversationToRestore`）
+- **多端对话客户端 SDK**：`chatClient.js`（访客会话 + REST + Realtime 封装）、`conversationApi.js`（会话 REST：建/恢复、消息、附件 init/complete/content、DTO 归一化含 `messageType / attachment / transcription`）、`conversationRealtime.js`（Socket.IO 实时：会话创建/接管/分配/结束、消息收发/已读、评价、**附件与转写状态事件** `attachment.updated / transcription.updated`，去重 + 断线重连）
+- **访客端多媒体**：`CustomerChatWidget` 同样支持图片 / 文件 / 语音发送与语音转写（上传走访客会话作用域，不串坐席登录态）
 - **AI / 人工模式切换**：工作时段人工优先，非工作时间由 AI 基于企业知识库接待（`resolveServiceMode` 按时间自动判定）
 - **会话流转**：欢迎 → 排队 → 接待中 → 已结束 → 评价（`transitionChat` 状态机），结束可提交星级评价
 
@@ -63,6 +65,8 @@
 - `docs/frontend-improvements.md`：前端纯前端改进建议清单（P0/P1 分级）
 - `docs/client-integration.md`：**客户多端对接待办接口接入说明**（访客会话、REST + Socket.IO 实时对账）
 - `docs/用户客服语音与多媒体交互系统开发说明书.md`：**语音 / 图片 / 文件 / 实时通话** 增量能力开发说明书（V1.0，含改造位置表与两期实施范围）
+- `RAG_IMPLEMENTATION_GUIDE.md` / `LIGHTWEIGHT_RAG_IMPLEMENTATION_GUIDE.md`：**RAG 可执行实施说明**——轻量方案（MySQL 全文索引 + DeepSeek 云端 API，不部署向量库）与知识规模扩大后的向量 RAG 升级方案
+- `DESIGN.md` / `PRODUCT.md`：客户服务窗口视觉设计规范与产品说明（`CustomerChatWidget` 作用域）
 - `designs/`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局 3 个 HTML 稿）
 - `output/`：设计文档交付物（产品思维导图、详细设计、原型设计、简化版、技术选型，md / html / docx 三态）及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结、**客服会话处理流程图**）
 - `AI智能客服系统 第一期产品思维导图.pdf`
@@ -84,34 +88,39 @@
 
 ```
 ai-customer-service-system/
-├── index.html                  # HTML 入口（SPA 挂载点）
+├── index.html                  # HTML 入口（SPA 挂载点，含字体预连接）
 ├── package.json                # 项目依赖与脚本（含 test）
-├── vite.config.js              # Vite 构建配置（含 /api 后端代理）
+├── vite.config.js              # Vite 构建配置（/api 后端代理 + /socket.io WebSocket 代理）
 ├── start.bat                   # 一键启动脚本（MySQL + 后端 + 前端）
 ├── .gitignore                  # Git 忽略规则
 ├── docs/                       # 设计文档与 HTML 原型
 │   ├── 原型设计/               # 7 个可独立打开的原型页面
 │   ├── superpowers/            # 设计规格（specs）与实施计划（plans）
 │   ├── frontend-improvements.md # 前端改进建议清单（P0/P1 分级）
-│   └── client-integration.md   # 客户多端对接待办接口接入说明
+│   ├── client-integration.md   # 客户多端对接待办接口接入说明
 │   └── 用户客服语音与多媒体交互系统开发说明书.md # 语音/图片/文件/通话增量能力开发说明（V1.0）
+├── DESIGN.md                   # 客户服务窗口视觉设计规范（CustomerChatWidget 作用域）
+├── PRODUCT.md                  # 产品说明（星河科技演示租户）
+├── RAG_IMPLEMENTATION_GUIDE.md # RAG 可执行实施说明（向量库升级方案）
+├── LIGHTWEIGHT_RAG_IMPLEMENTATION_GUIDE.md # 轻量 RAG（MySQL 全文索引 + DeepSeek，推荐）
 ├── designs/                    # 运营大屏视觉设计稿（3 个 HTML）
 ├── output/                     # 文档交付物与迭代说明（md / html / docx）
 └── src/
     ├── main.jsx                # 应用入口：挂载 React、注册路由、引入全局样式
-    ├── App.jsx                 # 路由编排 + 受保护路由 + 客服工作台（三栏布局）
+    ├── App.jsx                 # 路由编排 + 受保护路由 + 客服工作台（三栏布局 + 多媒体发送）
     ├── AuthPage.jsx            # 认证页（双门户：登录 / 注册 / 找回密码）
     ├── authPortal.js           # 双门户文案与角色分类配置
     ├── auth.js                 # 认证逻辑（后端 API 调用、演示降级、RBAC、表单校验）
     ├── approvalData.js         # 审核数据层（邀请码 / 注册申请 / 激活账号，localStorage 持久化）
-    ├── api.js                  # 业务 API 封装（坐席 F-006、租户 F-002，Bearer Token）
+    ├── api.js                  # 业务 API 封装（坐席 F-006、租户 F-002，Bearer Token，导出 API_BASE）
     ├── aiService.js            # AI 一键接管服务层（本地模拟 / 后端代理 / OpenAI 兼容三模式）
     ├── aiApi.js                # AI 接管 API 封装（平台模型 CRUD/测试/用量、租户策略、会话接管/接回）
     ├── dashboardApi.js         # 运营大屏 API 封装 + 渠道配色 / 告警趋势结构归一化
+    ├── workbenchApi.js         # 客服看板 API（坐席作用域：负载 / 分流队列 / 满意度）
     ├── serviceLogApi.js        # 日志 API 封装（服务日志 / 系统日志 / 系统诊断，失败降级演示数据）
-    ├── workbenchData.js        # 工作台数据层（会话种子数据 / 客服团队队列 / 分配联动）
-    ├── chatClient.js           # 免登录访客对话客户端 SDK（独立访客会话 + REST + Realtime）
-    ├── conversationApi.js      # 会话 REST API（建/恢复、消息、DTO 归一化）
+    ├── workbenchData.js        # 工作台数据层（会话种子 + 后端会话→看板视图形状映射）
+    ├── chatClient.js           # 免登录访客对话客户端 SDK（独立访客会话 + 会话恢复）
+    ├── conversationApi.js      # 会话 REST API（建/恢复、消息、附件 init/complete/content、DTO 归一化）
     ├── conversationRealtime.js # 会话实时层（Socket.IO 事件、去重、断线重连）
     ├── dashboardInsights.js    # 看板洞察指标（机构/客服/渠道占比、AI 处理率）
     ├── AgentWorkspaceShell.jsx # 客服工作区外壳（角色感知导航栏）
@@ -120,10 +129,10 @@ ai-customer-service-system/
     ├── AdminConsole.jsx        # 管理控制台（平台模式 + 机构模式 + 实时大屏 + 会话监控 + 告警）
     ├── adminData.js            # Mock 数据（租户、模型、审计、客服、客户、知识库、渠道、路由规则）
     ├── components/             # 拆分组件（AgentList / ApprovalCenter / CustomerCenter / LogsView / AiManagement）
-    ├── chat/                   # 客户聊天 Widget（CustomerChatWidget + 样式）
+    ├── chat/                   # 客户聊天 Widget + 多媒体模块（CustomerChatWidget / MessageContent / VoiceRecorder / mediaPolicy / wavEncoder / uploadClient / useMediaUploader）
     ├── EmptyState.jsx          # 通用空状态组件
     ├── SlaCountdown.jsx        # SLA 实时倒计时组件
-    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / aiApi / dashboardApi / serviceLogApi / workbenchData / chatClient / conversationApi / conversationRealtime / dashboardInsights）
+    ├── *.test.js               # 单元测试（auth / authPortal / approvalData / prototype / aiService / aiApi / dashboardApi / serviceLogApi / workbenchApi / workbenchData / chatClient / conversationApi / conversationRealtime / dashboardInsights / mediaPolicy）
     └── *.css                   # 各模块样式（styles / admin / auth / approval / polish / prototype / dashboard / logs / customer-center / chat-widget / tickets）
 ```
 
@@ -183,6 +192,11 @@ ai-customer-service-system/
 - `conversationsSeed`：会话种子数据（从 App.jsx 抽出，含 7 条会话）
 - `getConversationAssignment`：会话 → 客服分配映射
 - 客服团队队列选项模型：用于「团队工作负载 ↔ 分流接待队列」联调（队列类型 / 优先级 / 客服分配）
+- **后端会话 → 看板视图形状映射**：渠道 / 状态 / 优先级中文标签（`CHANNEL_LABELS` / `STATUS_TEXT` / `PRIORITY_TEXT`）、`relativeTimeText` 相对时间（刚刚 / N 分钟前 / 今天 HH:mm）、按会话 ID 稳定头像色
+
+### src/workbenchApi.js — 客服看板 API（坐席作用域）
+- `fetchWorkbenchOverview`：拉取客服看板总览（与 `dashboardApi` 的机构级区别：只含我的负载、团队负载、售前/售后分流队列与满意度）
+- `summarizeTeam` / `summarizeQueue`：后端成员/队列行折叠为看板汇总数字（缺失字段按 0 处理）
 
 ### src/components/ApprovalCenter.jsx — 注册审核中心
 管理后台的审核界面，`mode` 区分超管 / 机构管理员两套视图：
@@ -201,17 +215,27 @@ ai-customer-service-system/
 - 访客 session 存**独立 localStorage key**（`ai-customer-service-guest`），绝不写入共享登录态，不覆盖坐席/管理员会话
 - `ensureGuestSession`：用客户端生成的 UUID（`clientSessionId`）在后端幂等收敛到同一匿名客户，换取 JWT（TTL 7 天）
 - `createChatClient`：组合 REST（`conversationApi`）+ Realtime（`conversationRealtime`），`getToken` 可注入，解耦后端实现
+- **会话恢复**：`readGuestConversationId` / `writeGuestConversationId` 按「租户 + 渠道」记住当前会话，`selectGuestConversationToRestore` 优先恢复仍在服务中的会话（queued / human / ai_handling）
 - 无 `crypto.randomUUID` 环境（小程序）自动降级 UUID 生成
 
 ### src/conversationApi.js — 会话 REST API
 - `listConversations` / `listAllConversations`：分页查询 / **按总量自动翻页拉取机构内全部会话**（工作台「全部状态」视图使用）、`createOrResumeConversation`（建/恢复会话，带查询参数过滤）
-- `normalizeMessage` / `normalizeConversation`：后端 DTO → 前端视图模型统一映射
+- `normalizeMessage` / `normalizeConversation`：后端 DTO → 前端视图模型统一映射（含 `messageType`、`attachment`、`transcription` 结构归一化）
+- **附件接口**：`initAttachment`（初始化上传）→ 直传内容 → `completeAttachment`（后端核对存储与安全检查）→ `fetchAttachmentBlobUrl`（鉴权换取附件内容 Blob URL，图片预览 / 音频播放 / 文件下载共用）
 - 复用 `api.js` 的 `authRequest`（Bearer Token）
 
 ### src/conversationRealtime.js — 会话实时层
 - 基于 `socket.io-client`，`createConversationRealtime` 返回带订阅去重的实时通道
-- 覆盖 10 类事件：会话创建/接管/释放/分配/结束、消息创建/已读、评价调度/可见/提交
+- 覆盖 12 类事件：会话创建/接管/释放/分配/结束、消息创建/已读、评价调度/可见/提交、**附件更新（`attachment.updated`）/ 转写更新（`transcription.updated`）**
 - 事件 ID 去重（最多缓存 500 条）+ 断线重连回调
+
+### src/chat/ — 多媒体消息模块（图片 / 文件 / 语音）
+- `mediaPolicy.js`：**多媒体公共校验规则**（与后端 attachments 模块一致）——图片 ≤10MB×9、文件 ≤50MB×5、语音 ≤20MB×1（最长 5 分钟 / 最短 1 秒）；`validateFile` 前端即时校验、`formatBytes` / `formatDuration` 展示格式化
+- `uploadClient.js`：附件内容 XHR 直传（**真实上传进度**），生产环境可替换为对象存储预签名 PUT，接口形态一致
+- `wavEncoder.js`：`blobToWav16kMono` 把 MediaRecorder 产出的 webm/opus 解码后**重采样为 16kHz / 16bit / 单声道 WAV**（讯飞语音听写要求格式），解码失败回退原始音频
+- `useMediaUploader.js`：上传编排 Hook——校验 → init → 直传（进度）→ complete → 发送，状态机 `selected → initializing → uploading → confirming → sending → sent / failed`；`sendMessage` 由调用方注入（客户 Widget 传访客 SDK、工作台传坐席方法，避免串登录态），失败保留原始文件供重试
+- `VoiceRecorder.jsx`：语音录制状态机 `idle → recording → preview`（上传由父级接管），覆盖权限拒绝、不支持录音、最短/最长时长、**切后台安全停止**
+- `MessageContent.jsx`：按 `messageType` 渲染图片 / 文件 / 语音 / 文本消息体；附件经 `fetchAttachmentBlobUrl` 鉴权换取 Blob URL（组件卸载自动释放 objectURL 防泄漏），语音消息可点击触发转写
 
 ### src/dashboardInsights.js — 看板洞察指标
 - `buildDashboardComparisons`：机构（总数/活跃/占比）、客服（在线/忙碌/负载率）、渠道（排名/占比）对比指标
@@ -226,7 +250,7 @@ ai-customer-service-system/
 - 三个数据集：`service`（服务日志）/ `system`（系统日志）/ `operation`（机构操作日志），按级别/时间筛选，支持导出 CSV
 
 ### src/chat/CustomerChatWidget.jsx — 客户聊天 Widget
-`/visitor/chat` 免登录访客聊天窗口（`autoOpen` 支持），通过 `chatClient` SDK 对接后端。
+`/visitor/chat` 免登录访客聊天窗口（`autoOpen` 支持），通过 `chatClient` SDK 对接后端；集成图片 / 文件 / 语音发送（`useMediaUploader` 走访客会话作用域）与语音转写（`MessageContent`）。
 
 ### src/prototype.js — 原型与状态逻辑
 - `getWorkArea` / `getAgentWorkspaceNav`：工作区路由映射与角色感知导航
@@ -262,12 +286,13 @@ ai-customer-service-system/
 - `SlaCountdown`：SLA 剩余时间实时倒计时，按风险档位变色
 
 ### 测试（src/*.test.js）
-`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / **单级审核状态机** / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`aiApi.test.js`（平台模型 / 租户策略 / 会话接管端点）、`dashboardApi.test.js`（大屏数据装饰与归一化）、`serviceLogApi.test.js`（日志查询 / 行归一化）、`workbenchData.test.js`（分配映射 / 团队队列）、`chatClient.test.js`（访客会话 / 客户端）、`conversationApi.test.js`（会话 REST 归一化 / **自动翻页**）、`conversationRealtime.test.js`（实时事件去重）、`dashboardInsights.test.js`（看板洞察指标），共 **75 个用例**，`npm test` 全绿。
+`auth.test.js`（认证 / RBAC / 校验 / 激活登录门禁）、`authPortal.test.js`（门户配置）、`approvalData.test.js`（邀请码 / **单级审核状态机** / 激活）、`prototype.test.js`（工作区 / 状态机 / 服务模式 / 配置持久化）、`aiService.test.js`（AI 接管回复 / 系统提示）、`aiApi.test.js`（平台模型 / 租户策略 / 会话接管端点）、`dashboardApi.test.js`（大屏数据装饰与归一化）、`serviceLogApi.test.js`（日志查询 / 行归一化）、`workbenchApi.test.js`（看板汇总折叠）、`workbenchData.test.js`（分配映射 / 团队队列 / 相对时间）、`chatClient.test.js`（访客会话 / 客户端 / **会话恢复**）、`conversationApi.test.js`（会话 REST 归一化 / 自动翻页 / **附件与转写结构**）、`conversationRealtime.test.js`（实时事件去重）、`dashboardInsights.test.js`（看板洞察指标）、`mediaPolicy.test.js`（多媒体校验规则），共 **105 个用例**，`npm test` 全绿。
 
 ### docs/ 与 output/ — 文档与原型
 - `docs/原型设计/*.html`：7 个可独立打开的高保真原型页
 - `docs/superpowers/`：后端 MVP、双前端认证、双客服调度、**AI 接管可审计闭环**的设计规格（specs）和实施计划（plans）
 - `docs/frontend-improvements.md`：前端改进建议清单（P0 / P1 分级，只做纯前端可独立完成项）
+- `RAG_IMPLEMENTATION_GUIDE.md` / `LIGHTWEIGHT_RAG_IMPLEMENTATION_GUIDE.md`：RAG 可执行实施说明（轻量方案 + 向量库升级方案）
 - `designs/*.html`：运营大屏视觉设计稿（指挥中心 / 驾驶舱 / 平台全局）
 - `output/`：第一期设计文档交付态及迭代说明（AI 一键接管接入、Nginx 生产部署、前端改进落地、客服看板优化与分流联调、大厅客服管理看板对标总结）
 
@@ -280,7 +305,7 @@ npm install
 # 启动开发服务器（默认 http://localhost:5173）
 npm run dev
 
-# 运行单元测试（75 个用例）
+# 运行单元测试（105 个用例）
 npm test
 
 # 生产构建

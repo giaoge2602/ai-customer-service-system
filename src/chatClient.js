@@ -57,6 +57,39 @@ export function writeGuestSession(session, storage = globalThis.localStorage) {
   return session
 }
 
+function conversationScopeKey(tenantId, channel) {
+  return `${tenantId}:${channel || 'web'}`
+}
+
+/** 按租户与渠道记住当前会话，刷新页面后优先恢复到同一条对话。 */
+export function readGuestConversationId(
+  { tenantId, channel = 'web' },
+  storage = globalThis.localStorage,
+) {
+  const session = readGuestSession(storage)
+  return session?.conversationIds?.[conversationScopeKey(tenantId, channel)] || null
+}
+
+export function writeGuestConversationId(
+  { tenantId, channel = 'web', conversationId },
+  storage = globalThis.localStorage,
+) {
+  const session = readGuestSession(storage) || {}
+  const key = conversationScopeKey(tenantId, channel)
+  const conversationIds = { ...(session.conversationIds || {}) }
+  if (conversationId) conversationIds[key] = conversationId
+  else delete conversationIds[key]
+  writeGuestSession({ ...session, conversationIds }, storage)
+  return conversationId || null
+}
+
+/** 优先恢复仍在服务中的会话；没有活动会话时保留最近一次历史记录。 */
+export function selectGuestConversationToRestore(items = []) {
+  return items.find((item) => ['queued', 'human', 'ai_handling'].includes(item.status))
+    || items[0]
+    || null
+}
+
 /** 读取或生成并持久化当前设备的 clientSessionId（幂等键） */
 export function obtainClientSessionId(storage = globalThis.localStorage) {
   const existing = readGuestSession(storage)?.clientSessionId
@@ -98,6 +131,7 @@ export async function ensureGuestSession(
     accessToken: result.accessToken,
     user: result.user,
     customer: result.customer,
+    conversationIds: cached?.conversationIds || {},
     createdAt: Date.now(),
   }
   writeGuestSession(session, store)
@@ -156,7 +190,9 @@ function buildRest({ getToken, baseUrl, fetchImpl, defaultChannel }) {
       return normalizeMessage(
         await authed('POST', `/conversations/${id}/messages`, {
           clientMessageId: input.clientMessageId || newClientSessionId(),
+          ...(input.messageType ? { messageType: input.messageType } : {}),
           content: input.content,
+          ...(input.attachmentId ? { attachmentId: input.attachmentId } : {}),
         }),
       )
     },
@@ -168,6 +204,9 @@ function buildRest({ getToken, baseUrl, fetchImpl, defaultChannel }) {
     },
     submitConversationEvaluation(id, input) {
       return authed('POST', `/conversations/${id}/evaluation`, input)
+    },
+    recognizeTranscription(messageId) {
+      return authed('POST', `/messages/${messageId}/transcription/recognize`)
     },
   }
 }

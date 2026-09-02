@@ -714,3 +714,24 @@
     -webkit-backdrop-filter: none;
   }
 }
+
+/* ==================== 渠道接入（后端实时聚合） ==================== */
+
+/* 渠道数量由数据库实际出现的 channel 值决定，不再固定 4 列 */
+.admin-shell .channel-strip {
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+
+/* 非预置目录中的渠道（第三方通过 Open API 自带的 channel 值） */
+.admin-shell .channel-custom-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #f1edff;
+  color: #7054c1;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: middle;
+}

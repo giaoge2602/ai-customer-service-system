@@ -41,13 +41,149 @@ export function filterQueueByAgent(queue, agent) {
   if (!agent) return queue
   const mine = queue.filter((conversation) => conversation.assignee === agent.name)
   if (agent.queueKey === 'escalation') return [...queue.filter((conversation) => conversation.queueType === 'after_sales' && conversation.slaRisk !== 'safe'), ...mine]
+  // 后端还没有技能组（F-008 未实现），真实数据下 queueKey 为空，此时只回该客服名下的会话
+  if (!agent.queueKey) return mine
   return [...queue.filter((conversation) => conversation.queueType === agent.queueKey), ...mine]
+}
+
+// ---------- 真实后端会话 → 工作台/看板视图形状 ----------
+
+const CHANNEL_LABELS = {
+  web: '网页',
+  h5: 'H5',
+  miniprogram: '小程序',
+  wechat: '微信',
+  work_wechat: '企业微信',
+  api: 'API',
+}
+
+const STATUS_TEXT = {
+  new: '待接入',
+  queued: '待接管',
+  human: '处理中',
+  ai_handling: 'AI 接待中',
+  transferred: '已转接',
+  ended: '已结束',
+  evaluated: '已评价',
+}
+
+const PRIORITY_TEXT = { urgent: '紧急', high: '高优先级', normal: '普通', low: '低' }
+
+const TONES = ['blue', 'purple', 'orange', 'green', 'teal', 'indigo', 'pink']
+
+/** 用会话 ID 稳定地取一个头像色，避免每次渲染跳色 */
+function toneFor(id = '') {
+  let hash = 0
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 997
+  return TONES[hash % TONES.length]
+}
+
+/** 绝对时间 → 「刚刚 / N 分钟前 / 今天 HH:mm / M/D HH:mm」 */
+export function relativeTimeText(iso, now = new Date()) {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000)
+  if (diffSeconds < 60) return '刚刚'
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)} 分钟前`
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  const sameDay = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  return sameDay ? `今天 ${time}` : `${date.getMonth() + 1}/${date.getDate()} ${time}`
+}
+
+/**
+ * 后端会话行（GET /api/v1/conversations）→ 工作台与客服看板使用的视图行。
+ *
+ * 后端返回的是领域字段（unreadCount / customerReplyDeadlineAt / customer 全量记录），
+ * 而 deriveQueue / SlaCountdown / 会话列表都是围绕演示种子的形状写的。
+ * 这个适配层是两者之间唯一的翻译点，分流归类沿用后端的 queueType/queueReason，不再本地重算。
+ */
+export function adaptConversation(row, now = new Date()) {
+  if (!row) return null
+  const customer = row.customer || {}
+  const name = customer.name || '未命名客户'
+  const deadline = row.customerReplyDeadlineAt ? new Date(row.customerReplyDeadlineAt) : null
+  const slaSeconds = deadline && !Number.isNaN(deadline.getTime())
+    ? Math.max(0, Math.round((deadline.getTime() - now.getTime()) / 1000))
+    : null
+  const status = row.status === 'transferred' ? 'queued' : row.status
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    customerId: row.customerId,
+    name,
+    initials: name.slice(0, 1),
+    channel: CHANNEL_LABELS[row.channel] || row.channel,
+    channelKey: row.channel,
+    status,
+    statusText: STATUS_TEXT[row.status] || row.status,
+    priority: row.priority,
+    priorityText: PRIORITY_TEXT[row.priority] || row.priority,
+    unread: row.unreadCount ?? 0,
+    time: relativeTimeText(row.lastMessageAt || row.createdAt, now),
+    slaSeconds,
+    sla: slaSeconds === null ? '—' : formatSlaSeconds(slaSeconds),
+    slaRisk: row.slaRisk || (slaSeconds === null ? 'safe' : slaRiskByLeft(slaSeconds)),
+    slaLabel: slaSeconds === null
+      ? (row.status === 'ai_handling' ? 'AI处理中' : '—')
+      : slaSeconds === 0 ? '已超时' : slaSeconds < 180 ? '即将超时' : '正常',
+    preview: row.preview || '',
+    tone: toneFor(row.id),
+    assignee: row.agent?.name || null,
+    queueType: row.queueType,
+    queueReason: row.queueReason,
+    queueScore: row.queueScore,
+    customer: {
+      level: customer.level,
+      source: customer.source,
+      phone: customer.phone,
+      email: customer.email,
+      tags: Array.isArray(customer.tags) ? customer.tags : [],
+    },
+    endedAt: row.endedAt || null,
+    messages: row.messages || [],
+  }
+}
+
+/**
+ * 客服看板团队成员：后端 /workbench/overview 的成员行 → 看板视图行。
+ * 后端没有技能组与排班（F-007 / F-008 未实现），group/queueKey/shift 因此留空，
+ * 团队负载 ↔ 队列的联动在真实数据下退化为「按接待人过滤」。
+ */
+export function adaptTeamMember(member) {
+  const state = member.tone === 'offline' ? '离线' : member.tone === 'busy' ? '忙碌' : member.load > 0 ? '接待中' : '空闲'
+  return {
+    id: member.id,
+    name: member.name,
+    group: '未配置技能组',
+    queueKey: null,
+    queueLabel: '全部队列',
+    state,
+    tone: member.tone === 'working' ? 'ready' : member.tone,
+    response: '—',
+    score: '—',
+    shift: '—',
+    maxLoad: member.maxLoad || 0,
+    active: member.load || 0,
+    queue: 0,
+    isMe: Boolean(member.isMe),
+  }
 }
 
 const afterSalesTerms = ['退款', '订单', '售后', '故障', '投诉', '发票', '到账', '延迟']
 const preSalesTerms = ['企业版', '部署', '支持', '产品', '如何', '功能']
 
 export function getQueueType(conversation) {
+  // 后端已把分流归类下沉为权威字段（GET /conversations 的 queueType/queueReason），优先采用
+  if (conversation.queueType) {
+    return {
+      key: conversation.queueType,
+      label: conversation.queueType === 'after_sales' ? '售后队列' : '售前队列',
+      reason: conversation.queueReason || (conversation.queueType === 'after_sales' ? '已注册/已购买客户服务' : '未注册客户产品咨询'),
+    }
+  }
   const customer = conversation.customer || {}
   const text = `${customer.level || ''} ${customer.source || ''} ${(customer.tags || []).join(' ')} ${conversation.preview || ''}`
   if (customer.level?.includes('VIP') || customer.level?.includes('高价值') || afterSalesTerms.some((term) => text.includes(term))) {
@@ -66,7 +202,17 @@ export function deriveQueue(conversations) {
     .filter((conversation) => conversation.status === 'queued')
     .map((conversation) => {
       const queueType = getQueueType(conversation)
-      return { ...conversation, ...queueType, assignee: getConversationAssignment(conversation), waitLabel: conversation.time, queueScore: (queueType.key === 'after_sales' ? 100 : 0) + (riskScore[conversation.slaRisk] || 1) * 10 + (priorityScore[conversation.priority] || 1) }
+      return {
+        ...conversation,
+        ...queueType,
+        queueType: queueType.key,
+        assignee: getConversationAssignment(conversation),
+        waitLabel: conversation.time,
+        // 后端已给出排序分时直接用，保证工作台与客服看板同一口径
+        queueScore: typeof conversation.queueScore === 'number'
+          ? conversation.queueScore
+          : (queueType.key === 'after_sales' ? 100 : 0) + (riskScore[conversation.slaRisk] || 1) * 10 + (priorityScore[conversation.priority] || 1),
+      }
     })
     .sort((a, b) => b.queueScore - a.queueScore || b.unread - a.unread)
 }

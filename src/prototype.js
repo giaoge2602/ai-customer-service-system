@@ -1,10 +1,10 @@
 const WORK_AREAS = new Set(['dashboard', 'knowledge', 'tickets', 'serviceLogs', 'settings'])
 
 const WORKSPACE_NAV_ITEMS = [
-  { id: 'conversations', label: '会话工作台', path: '/workbench', icon: 'chat', badge: '12', group: 'workspace' },
+  { id: 'conversations', label: '会话工作台', path: '/workbench', icon: 'chat', group: 'workspace' },
   { id: 'dashboard', label: '客服看板', path: '/workbench/dashboard', icon: 'chart', group: 'workspace' },
   { id: 'knowledge', label: '知识库', path: '/workbench/knowledge', icon: 'book', group: 'resources', roles: ['platform_admin', 'tenant_admin'] },
-  { id: 'tickets', label: '工单协同', path: '/workbench/tickets', icon: 'ticket', badge: '3', group: 'resources', roles: ['agent', 'platform_admin', 'tenant_admin'] },
+  { id: 'tickets', label: '工单协同', path: '/workbench/tickets', icon: 'ticket', group: 'resources', roles: ['agent', 'platform_admin', 'tenant_admin'] },
   { id: 'serviceLogs', label: '服务日志', path: '/workbench/service-logs', icon: 'clock', group: 'resources' },
   { id: 'settings', label: 'AI 与界面配置', path: '/workbench/settings', icon: 'settings', group: 'settings', roles: ['platform_admin', 'tenant_admin'] },
 ]

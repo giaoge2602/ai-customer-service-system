@@ -85,8 +85,9 @@ export default function ApprovalCenter({ mode, session, onNotify }) {
     onNotify('邀请码已撤销')
   }
 
-  const pendingTenants = approvals.filter((a) => a.kind === 'tenant')
-  const pendingAgents = approvals.filter((a) => a.kind === 'agent')
+  // 页签红点只统计真正待处理的申请；列表仍展示全部记录（含已处理）
+  const pendingTenants = approvals.filter((a) => a.kind === 'tenant' && a.status === 'pending')
+  const pendingAgents = approvals.filter((a) => a.kind === 'agent' && a.status === 'pending')
   const waitingCount = approvals.filter((a) => a.status === 'pending' && a[`${isPlatform ? 'platform' : 'org'}Approval`] === 'pending').length
 
   const tabs = isPlatform

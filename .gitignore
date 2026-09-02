@@ -8,3 +8,6 @@ temp_doc*.txt
 extract_docs.ps1
 ~$*
 *.tmp
+.impeccable/
+vite-dev.log
+*.log

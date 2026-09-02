@@ -1,4 +1,4 @@
-const API_BASE = '/api/v1'
+export const API_BASE = '/api/v1'
 const SESSION_KEY = 'ai-customer-service-session'
 
 export function readAccessToken() {

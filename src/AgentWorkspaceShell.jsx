@@ -27,7 +27,7 @@ const PAGE_TITLES = {
   settings: 'AI 与界面配置',
 }
 
-export default function AgentWorkspaceShell({ active, session, onLogout, children }) {
+export default function AgentWorkspaceShell({ active, session, onLogout, conversationsUnread = 0, children }) {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const menuButtonRef = useRef(null)
@@ -84,7 +84,7 @@ export default function AgentWorkspaceShell({ active, session, onLogout, childre
   >
     <ShellIcon name={item.icon} />
     <span>{item.label}</span>
-    {item.badge && <b className={item.id === 'tickets' ? 'muted-count' : ''}>{item.badge}</b>}
+    {item.id === 'conversations' && conversationsUnread > 0 && <b>{conversationsUnread > 99 ? '99+' : conversationsUnread}</b>}
   </button>
 
   const renderNav = (className = '') => <nav className={`rail ${className}`} aria-label="主导航">
@@ -97,7 +97,7 @@ export default function AgentWorkspaceShell({ active, session, onLogout, childre
     <header className="topbar">
       <button ref={menuButtonRef} type="button" className="mobile-menu-button icon-button" aria-label={mobileOpen ? '关闭主导航' : '打开主导航'} aria-expanded={mobileOpen} onClick={() => setMobileOpen((open) => !open)}><ShellIcon name={mobileOpen ? 'close' : 'menu'} /></button>
       <div className="brand-lockup"><div className="brand-mark"><ShellIcon name="headset" size={20} /></div><div><strong>AI智能客服系统</strong><span>客服工作台</span></div></div>
-      <div className="workspace-title"><span className="live-dot" /><span className="workspace-organization">{organizationLabel}</span><span className="workspace-divider" />华东服务中心 <span className="workspace-divider" />{PAGE_TITLES[active] || '客服工作台'}</div>
+      <div className="workspace-title"><span className="live-dot" /><span className="workspace-organization">{organizationLabel}</span><span className="workspace-divider" />{PAGE_TITLES[active] || '客服工作台'}</div>
       <div className="topbar-actions"><div className="presence-select" ref={presenceRef}><button type="button" className="presence-trigger" aria-haspopup="listbox" aria-expanded={presenceOpen} aria-label={`当前状态：${presenceLabels[presence]}`} onClick={() => setPresenceOpen((open) => !open)}><span className={`online-dot presence-${presence}`} />{presenceLabels[presence]}<i className="presence-caret">▾</i></button>{presenceOpen && <ul className="presence-menu" role="listbox"><li><button type="button" role="option" aria-selected={presence === 'online'} onClick={() => { setPresence('online'); setPresenceOpen(false) }}><span className="online-dot presence-online" /><span><strong>在线接待</strong><small>正常分配新会话</small></span></button></li><li><button type="button" role="option" aria-selected={presence === 'busy'} onClick={() => { setPresence('busy'); setPresenceOpen(false) }}><span className="online-dot presence-busy" /><span><strong>忙碌</strong><small>不分配新会话</small></span></button></li><li><button type="button" role="option" aria-selected={presence === 'offline'} onClick={() => { setPresence('offline'); setPresenceOpen(false) }}><span className="online-dot presence-offline" /><span><strong>离线</strong><small>不再接收新会话</small></span></button></li></ul>}</div><button type="button" className="icon-button" aria-label="查看待办工单" onClick={() => go('/workbench/tickets')}><ShellIcon name="bell" /></button><div className="agent-avatar">{session.name.slice(0, 1)}</div><div className="agent-meta"><strong>{session.name}</strong><span>{session.title}</span></div><button type="button" className="logout-button" onClick={onLogout}>退出</button></div>
     </header>
     <div className="workbench-layout">

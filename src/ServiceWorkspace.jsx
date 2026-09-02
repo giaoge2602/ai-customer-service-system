@@ -4,10 +4,11 @@ import AgentWorkspaceShell from './AgentWorkspaceShell'
 import SlaCountdown, { parseSlaToSeconds, slaRiskByLeft } from './SlaCountdown'
 import { loadPrototypeConfig, resolveServiceMode, savePrototypeConfig } from './prototype'
 import LogsView from './components/LogsView'
-import { deriveAgentWorkload, deriveQueue, filterQueueByAgent, conversationsSeed, teamSeed } from './workbenchData'
+import { deriveAgentWorkload, deriveQueue, filterQueueByAgent, conversationsSeed, teamSeed, adaptConversation, adaptTeamMember } from './workbenchData'
+import { fetchWorkbenchOverview } from './workbenchApi'
 import { readAccessToken } from './api'
 import { createConversationRealtime } from './conversationRealtime'
-import { createOrResumeConversation, endConversation, getConversation, listConversations, markConversationRead, sendConversationMessage, submitConversationEvaluation } from './conversationApi'
+import { createOrResumeConversation, endConversation, getConversation, listConversations, markConversationRead, sendConversationMessage, submitConversationEvaluation, claimConversation } from './conversationApi'
 
 const knowledge = [
   { title: '退款到账需要多久？', category: '退款售后', answer: '审核通过后，原路退回通常需要 3–5 个工作日。', hits: 238, status: '已启用' },
@@ -17,7 +18,7 @@ const knowledge = [
 
 function WorkspaceTop({ title, subtitle, session }) {
   const organization = session.role === 'platform_admin' ? '全平台视图' : session.tenantName || session.tenantId || '机构信息未返回'
-  return <header className="service-top"><div><p><strong>{organization}</strong><span>/</span>华东服务中心 <span>/</span> {subtitle}</p><h1>{title}</h1></div><span className="workspace-live-status"><i />实时数据已连接</span></header>
+  return <header className="service-top"><div><p><strong>{organization}</strong><span>/</span> {subtitle}</p><h1>{title}</h1></div><span className="workspace-live-status"><i />实时数据已连接</span></header>
 }
 
 export default function ServiceWorkspace({ area, session, onLogout }) {
@@ -116,7 +117,10 @@ function TeamDashboard({ session }) {
   const [agentFocus, setAgentFocus] = useState(null)
   const [claimed, setClaimed] = useState([])
   const [notice, setNotice] = useState('')
-  const [team, setTeam] = useState(() => teamSeed.map((agent) => {
+  // 后端 /workbench/overview 优先；拉不到时退回演示种子并在界面标注
+  const [overview, setOverview] = useState(null)
+  const live = overview !== null
+  const [seedTeam, setSeedTeam] = useState(() => teamSeed.map((agent) => {
     const load = deriveAgentWorkload(conversationsSeed, agent.name)
     return { ...agent, active: Math.max(load.active, 0), queue: load.queue }
   }))
@@ -127,8 +131,45 @@ function TeamDashboard({ session }) {
     return map
   })
   const [queueFlux, setQueueFlux] = useState(0)
-  // TODO: 替换为后端 /api/v1/dashboard/realtime（WebSocket / SSE）实时推送
+
   useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const data = await fetchWorkbenchOverview()
+        if (!cancelled) setOverview(data)
+      } catch {
+        if (!cancelled) setOverview(null)
+      }
+    }
+    load()
+    const timer = setInterval(load, 5000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [])
+
+  // 真实队列：后端已按 queueScore 排好序，这里只做视图形状适配
+  const liveQueue = useMemo(() => {
+    if (!overview) return null
+    const now = new Date()
+    return overview.queue.items.map((row) => {
+      const adapted = adaptConversation(
+        { ...row, customer: { ...(row.customer || {}), tags: [] }, unreadCount: row.unreadCount },
+        now,
+      )
+      return { ...adapted, label: row.queueType === 'after_sales' ? '售后队列' : '售前队列', reason: row.queueReason, assignee: row.assignee }
+    })
+  }, [overview])
+
+  const liveTeam = useMemo(
+    () => (overview ? overview.team.members.map(adaptTeamMember) : null),
+    [overview],
+  )
+  const team = liveTeam || seedTeam
+  const setTeam = live ? () => {} : setSeedTeam
+
+  useEffect(() => {
+    if (live) return undefined
+    // 演示模式下用本地计时器模拟 SLA 倒计时与状态波动
     const timer = setInterval(() => {
       setSlaLeft((prev) => {
         const next = {}
@@ -136,16 +177,19 @@ function TeamDashboard({ session }) {
         return next
       })
       setQueueFlux(() => (Math.random() < 0.5 ? 0 : Math.random() < 0.5 ? -1 : 1))
-      setTeam((prev) => prev.map((a) => {
+      setSeedTeam((prev) => prev.map((a) => {
         if (a.state === '离线' || Math.random() > 0.06) return a
         const toBusy = a.state === '空闲'
         return { ...a, state: toBusy ? '忙碌' : '空闲', tone: toBusy ? 'busy' : 'ready' }
       }))
     }, 1000)
     return () => clearInterval(timer)
-  }, [])
+  }, [live])
 
-  const queue = useMemo(() => deriveQueue(conversationsSeed).filter((conversation) => !claimed.includes(conversation.id)), [claimed])
+  const queue = useMemo(
+    () => (liveQueue || deriveQueue(conversationsSeed)).filter((conversation) => !claimed.includes(conversation.id)),
+    [liveQueue, claimed],
+  )
   const afterSales = queue.filter((conversation) => conversation.queueType === 'after_sales')
   const preSales = queue.filter((conversation) => conversation.queueType === 'pre_sales')
   const slaLeftOf = (conversation) => slaLeft[conversation.id] ?? parseSlaToSeconds(conversation.sla)
@@ -164,7 +208,18 @@ function TeamDashboard({ session }) {
     : baseVisible
 
   const toggleAgentFocus = (name) => setAgentFocus((current) => (current === name ? null : name))
-  const claim = (id, assigneeName = me) => {
+  const claim = async (id, assigneeName = me) => {
+    if (live) {
+      // 真实数据下走后端认领，成功后立刻重拉看板，负载与队列由后端给出
+      try {
+        await claimConversation(id)
+        setOverview(await fetchWorkbenchOverview())
+        setNotice(`已接管会话 ${id}，负载已同步`)
+      } catch (error) {
+        setNotice(`接管失败：${error.message}`)
+      }
+      return
+    }
     setClaimed((items) => [...items, id])
     setTeam((items) => items.map((agent) => (agent.name === assigneeName ? { ...agent, active: agent.active + 1, queue: Math.max(0, agent.queue - 1) } : agent)))
     setNotice(`已接管会话，计入 ${assigneeName} 的当前负载`)
@@ -209,6 +264,11 @@ function TeamDashboard({ session }) {
 
   return (
     <div className="service-content db-dashboard">
+      <div className="db-source-hint" role="status">
+        {live
+          ? `数据来自数据库 · 排队 ${overview.queue.total} 个（售前 ${overview.queue.preSales} / 售后 ${overview.queue.afterSales}${overview.queue.overdue ? ` / 超时 ${overview.queue.overdue}` : ''}）· 在线客服 ${overview.team.onlineAgents}/${overview.team.totalAgents}`
+          : '演示数据（后端未连接）· 团队负载与分流队列来自本地种子'}
+      </div>
       <section className="db-metrics" aria-label="团队关键指标">
         <article className="db-metric db-metric-online">
           <span className="db-metric-label">在线客服</span>
@@ -396,14 +456,14 @@ export function CustomerChat({ session, onLogout, client, initialChannel }) {
     const realtime = openRealtime(conversation?.id)
     setConnected(realtime.isConnected())
     const refresh = () => loadCurrent()
-    const unsubscribers = ['message.created', 'conversation.claimed', 'conversation.ended', 'evaluation.visible', 'evaluation.submitted'].map((name) => realtime.subscribe(name, refresh))
+    const unsubscribers = ['message.created', 'conversation.claimed', 'conversation.ended', 'conversation.reopened', 'evaluation.visible', 'evaluation.submitted'].map((name) => realtime.subscribe(name, refresh))
     if (conversation?.id) realtime.join(conversation.id).then(() => setConnected(true))
     return () => { unsubscribers.forEach((unsubscribe) => unsubscribe()); realtime.close() }
   }, [conversation?.id])
 
   const send = async (text = draft) => {
     const content = text.trim()
-    // 已结束会话允许客户继续补充消息（不重开会话、不重算超时）；已评价只读
+    // 客户向已结束会话发送新消息时，服务端会恢复为处理中；已评价会话保持只读。
     if (!content || sending || conversation?.status === 'evaluated') return
     setSending(true)
     setError('')
@@ -437,5 +497,5 @@ export function CustomerChat({ session, onLogout, client, initialChannel }) {
 
   const statusText = !conversation ? '人工客服在线' : conversation.status === 'queued' ? '正在排队等待客服' : conversation.status === 'human' ? `${conversation.agent?.name || '客服'} 正在为您服务` : conversation.status === 'ai_handling' ? 'AI 客服正在为您服务' : '本次会话已结束'
   const evaluationVisible = Boolean(conversation?.evaluationPresentedAt) && conversation?.status !== 'evaluated'
-  return <main className="customer-page"><div className="customer-backdrop"><div className="customer-copy"><span>{session?.tenantName || '星河科技'} · 客户服务</span><h1>有问题，随时问我们。</h1><p>人工客服会实时处理您的咨询，聊天记录将安全保存在服务会话中。</p><div><b>真实会话</b> 持久保存 <b>实时</b> 消息同步</div></div></div><section className="customer-chat"><header style={{background:config.theme}}><span className="bot-orb">星</span><strong>星河客户服务<small><i/> {statusText} · {connected ? '实时已连接' : '正在连接'}</small></strong><button type="button" onClick={onLogout}>退出登录</button></header><div className="customer-messages"><p className="preview-time">{loading ? '正在加载历史会话…' : '当前会话'}</p>{!loading && !conversation && <><div className="agent-bubble">{config.welcome}。请选择常见问题或直接输入您的问题。</div><div className="customer-quick"><button onClick={() => send('退款多久到账？')}>退款多久到账？</button><button onClick={() => send('企业版支持私有化部署吗？')}>企业版支持私有化部署吗？</button><button onClick={() => send('如何修改登录密码？')}>如何修改登录密码？</button></div></>}{conversation?.messages?.map((message) => <div key={message.id} className={`${message.senderType}-bubble`}>{message.content}</div>)}{error && <div className="system-bubble">{error}</div>}{evaluationVisible && <div className="rating-card"><strong>请评价本次服务</strong><p>您的评价将直接结束本次会话。</p><div>{[['very_satisfied','非常满意'],['satisfied','满意'],['neutral','一般'],['dissatisfied','不满意']].map(([value,label]) => <button key={value} className={rating === value ? 'active' : ''} onClick={() => setRating(value)}>{label}</button>)}</div><textarea className="rating-text" maxLength={200} value={ratingText} onChange={(event) => setRatingText(event.target.value)} placeholder="还有什么想说的？（选填）"/><button className="rating-submit" disabled={!rating} onClick={submitRating}>提交评价并结束</button></div>}{conversation?.status === 'evaluated' && <div className="rating-thanks" role="status"><span>✓</span><strong>感谢您的反馈</strong><p>评价已提交，本次会话已经结束</p></div>}</div><footer><button aria-label="仅支持文本消息" disabled>＋</button><input aria-label="输入消息" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} disabled={sending || conversation?.status === 'evaluated'} placeholder={conversation?.status === 'evaluated' ? '评价已完成，会话只读' : conversation?.status === 'ended' ? '会话已结束 · 仍可补充消息' : '输入您的问题...'}/><button className="chat-send" style={{background:config.theme}} disabled={sending || !draft.trim()} onClick={() => send()}>发送</button></footer>{conversation && ['queued','human'].includes(conversation.status) && <button className="finish-chat" onClick={finish}>结束本次会话</button>}<p className="privacy-note">人工会话已持久化 · 断线重连后自动同步</p></section></main>
+  return <main className="customer-page"><div className="customer-backdrop"><div className="customer-copy"><span>{session?.tenantName || '星河科技'} · 客户服务</span><h1>有问题，随时问我们。</h1><p>人工客服会实时处理您的咨询，聊天记录将安全保存在服务会话中。</p><div><b>真实会话</b> 持久保存 <b>实时</b> 消息同步</div></div></div><section className="customer-chat"><header style={{background:config.theme}}><span className="bot-orb">星</span><strong>星河客户服务<small><i/> {statusText} · {connected ? '实时已连接' : '正在连接'}</small></strong><button type="button" onClick={onLogout}>退出登录</button></header><div className="customer-messages"><p className="preview-time">{loading ? '正在加载历史会话…' : '当前会话'}</p>{!loading && !conversation && <><div className="agent-bubble">{config.welcome}。请选择常见问题或直接输入您的问题。</div><div className="customer-quick"><button onClick={() => send('退款多久到账？')}>退款多久到账？</button><button onClick={() => send('企业版支持私有化部署吗？')}>企业版支持私有化部署吗？</button><button onClick={() => send('如何修改登录密码？')}>如何修改登录密码？</button></div></>}{conversation?.messages?.map((message) => <div key={message.id} className={`${message.senderType}-bubble`}>{message.content}</div>)}{error && <div className="system-bubble">{error}</div>}{evaluationVisible && <div className="rating-card"><strong>请评价本次服务</strong><p>您的评价将直接结束本次会话。</p><div>{[['very_satisfied','非常满意'],['satisfied','满意'],['neutral','一般'],['dissatisfied','不满意']].map(([value,label]) => <button key={value} className={rating === value ? 'active' : ''} onClick={() => setRating(value)}>{label}</button>)}</div><textarea className="rating-text" maxLength={200} value={ratingText} onChange={(event) => setRatingText(event.target.value)} placeholder="还有什么想说的？（选填）"/><button className="rating-submit" disabled={!rating} onClick={submitRating}>提交评价并结束</button></div>}{conversation?.status === 'evaluated' && <div className="rating-thanks" role="status"><span>✓</span><strong>感谢您的反馈</strong><p>评价已提交，本次会话已经结束</p></div>}</div><footer><button aria-label="仅支持文本消息" disabled>＋</button><input aria-label="输入消息" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') send() }} disabled={sending || conversation?.status === 'evaluated'} placeholder={conversation?.status === 'evaluated' ? '评价已完成，会话只读' : conversation?.status === 'ended' ? '发送新消息将重新开启会话' : '输入您的问题...'}/><button className="chat-send" style={{background:config.theme}} disabled={sending || !draft.trim()} onClick={() => send()}>发送</button></footer>{conversation && ['queued','human'].includes(conversation.status) && <button className="finish-chat" onClick={finish}>结束本次会话</button>}<p className="privacy-note">人工会话已持久化 · 断线重连后自动同步</p></section></main>
 }

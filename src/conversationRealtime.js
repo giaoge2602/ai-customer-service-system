@@ -11,6 +11,8 @@ const EVENT_NAMES = [
   'evaluation.scheduled',
   'evaluation.visible',
   'evaluation.submitted',
+  'attachment.updated',
+  'transcription.updated',
 ]
 
 export function createConversationRealtime({ token, onReconnect, ioFactory = io }) {
